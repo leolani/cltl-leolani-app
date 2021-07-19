@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cltl-chat-ui
+spec:
+  selector:
+    matchLabels:
+      app: cltl-chat-ui
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: cltl-chat-ui
+    spec:
+      containers:
+      - name: cltl-chat-ui
+        image: cltl/cltl-chat-ui:0.0.dev1
+        volumeMounts:
+          - name: cltl-config
+            mountPath: /cltl_k8_config
+        ports:
+          - containerPort: 5000
+      volumes:
+        - name: cltl-config
+          configMap:
+            name: cltl-config

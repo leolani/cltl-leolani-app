@@ -1,0 +1,30 @@
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: cltl-hack.local
+      paths: []
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+kubernetes-dashboard:
+  fullnameOverride: 'kubernetes-dashboard'
+
+rabbitmq:
+  auth:
+    username: 'cltl'
+    password: 'cltl'
+  ingress:
+    enabled: true
+    hostname: localhost
+    path: /mq/(.*)
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /$1
+    tls: false

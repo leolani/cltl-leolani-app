@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cltl-config
+data:
+  DEFAULT: |
+      name: cltl-hack
+  cltl.event.kombu: |
+      server: amqp://cltl:cltl@cltl-hack-rabbitmq:5672
+      exchange: cltl.combot
+      type: direct
+      compression: bzip2
+  cltl.chat-ui.events: |
+      local: False
+      topic_utterance: utterance
+      topic_response: utterance
