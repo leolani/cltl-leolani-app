@@ -9,7 +9,8 @@ project_mirror ?= ${project_root}/cltl-requirements/mirror
 
 project_dependencies ?= $(addprefix $(project_root)/, \
 		cltl-combot \
-		cltl-chat-ui)
+		cltl-chat-ui \
+		cltl-chat-backend)
 
 git_remote ?= https://github.com/leolani
 

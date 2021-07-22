@@ -28,3 +28,7 @@ rabbitmq:
     annotations:
       nginx.ingress.kubernetes.io/rewrite-target: /$1
     tls: false
+
+topics:
+  utterance: 'utterance'
+  response: 'response'

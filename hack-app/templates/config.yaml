@@ -12,5 +12,9 @@ data:
       compression: bzip2
   cltl.chat-ui.events: |
       local: False
-      topic_utterance: utterance
-      topic_response: utterance
+      topic_utterance: {{ .Values.topics.utterance }}
+      topic_response: {{ .Values.topics.response }}
+  cltl.chat-backend.events: |
+      local: False
+      topic_utterance: {{ .Values.topics.utterance }}
+      topic_response: {{ .Values.topics.response }}
