@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: cltl-chat-backend
-        image: cltl/cltl-chat-backend:0.0.dev1
+        image: cltl/cltl-chat-backend:latest
         volumeMounts:
           - name: cltl-config
             mountPath: /cltl_k8_config
