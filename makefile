@@ -18,3 +18,4 @@ git_remote ?= https://github.com/leolani
 include util/make/makefile.base.mk
 include util/make/makefile.git.mk
 include makefile.helm.mk
+#include makefile.compose.mk

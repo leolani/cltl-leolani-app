@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  rabbitmq:
+    image: "rabbitmq:3.9.0-management"
+    hostname: "rabbitmq"
+    ports:
+      - "5672:5672"
+      - "8080:15672"
+    volumes:
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+  chat-ui:
+    image: "cltl/cltl-chat-ui:0.0.dev1"
+    ports:
+      - "80:5000"
+    volumes:
+      - ./config:/cltl_k8_config
+  chat-backend:
+    image: "cltl/cltl-chat-backend:0.0.dev1"
+    volumes:
+      - ./config:/cltl_k8_config

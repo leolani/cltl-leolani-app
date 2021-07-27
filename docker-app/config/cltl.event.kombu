@@ -1,0 +1,4 @@
+server: amqp://cltl:cltl@rabbitmq:5672
+exchange: cltl.combot
+type: direct
+compression: bzip2
