@@ -3,7 +3,7 @@ SHELL = /bin/bash
 project_root ?= $(realpath ..)
 project_name ?= $(notdir $(realpath .))
 project_version ?= $(shell cat version.txt)
-project_chart ?= hack-app
+project_chart ?= k8-app
 
 .PHONY: run
 run: $(project_chart)/charts

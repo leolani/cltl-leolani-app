@@ -134,4 +134,4 @@ dmypy.json
 makefile.d
 
 # Helm
-hack-app/charts/
+k8-app/charts/
