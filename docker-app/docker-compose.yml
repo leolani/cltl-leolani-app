@@ -10,12 +10,12 @@ services:
     volumes:
       - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
   chat-ui:
-    image: "cltl/cltl-chat-ui:0.0.dev1"
+    image: "cltl/cltl-chat-ui:latest"
     ports:
       - "80:5000"
     volumes:
       - ./config:/cltl_k8_config
   chat-backend:
-    image: "cltl/cltl-chat-backend:0.0.dev1"
+    image: "cltl/cltl-chat-backend:latest"
     volumes:
       - ./config:/cltl_k8_config
