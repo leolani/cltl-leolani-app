@@ -1,3 +1,3 @@
-# cltl-hack
+# cltl-eliza
 
 TODO

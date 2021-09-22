@@ -4,9 +4,9 @@ metadata:
   name: cltl-config
 data:
   DEFAULT: |
-      name: cltl-hack
+      name: cltl-eliza
   cltl.event.kombu: |
-      server: amqp://cltl:cltl@cltl-hack-rabbitmq:5672
+      server: amqp://cltl:cltl@cltli-eliza-rabbitmq:5672
       exchange: cltl.combot
       type: direct
       compression: bzip2

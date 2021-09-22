@@ -1,6 +1,6 @@
 apiVersion: v2
-name: cltl-hack
-description: A dummy application to hack around
+name: cltl-eliza
+description: Eliza implementation based on the cltl-combot framework
 
 type: application
 version: 0.1.0
