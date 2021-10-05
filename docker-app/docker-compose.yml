@@ -15,7 +15,3 @@ services:
       - "80:5000"
     volumes:
       - ./config:/cltl_k8_config
-  chat-backend:
-    image: "cltl/cltl-chat-backend:latest"
-    volumes:
-      - ./config:/cltl_k8_config

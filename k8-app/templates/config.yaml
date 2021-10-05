@@ -14,7 +14,3 @@ data:
       local: False
       topic_utterance: {{ .Values.topics.utterance }}
       topic_response: {{ .Values.topics.response }}
-  cltl.chat-backend.events: |
-      local: False
-      topic_utterance: {{ .Values.topics.utterance }}
-      topic_response: {{ .Values.topics.response }}

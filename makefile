@@ -2,8 +2,7 @@ SHELL = /bin/bash
 
 project_dependencies ?= $(addprefix $(project_root)/, \
 		cltl-combot \
-		cltl-chat-ui \
-		cltl-chat-backend)
+		cltl-chat-ui)
 
 git_remote ?= https://github.com/leolani
 
