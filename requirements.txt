@@ -1,0 +1,21 @@
+cltl.backend
+cltl.asr
+cltl.vad
+cltl.chat-ui
+cltl.eliza
+
+# git+https://github.com/huggingface/datasets.git
+transformers
+cffi
+importlib_resources
+jiwer
+numpy
+sounddevice
+soundfile
+torch
+
+# app
+requests
+flask
+werkzeug
+pyaudio
