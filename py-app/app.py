@@ -1,5 +1,4 @@
 import logging.config
-import sys
 
 from cltl.backend.api.microphone import Microphone
 from cltl.backend.api.storage import AudioStorage
@@ -13,10 +12,12 @@ from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
 from cltl.combot.infra.di_container import singleton
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
+from cltl.asr.wav2vec_asr import Wav2Vec2ASR
+from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl_service.backend.backend import AudioBackendService
 from cltl_service.backend.storage import StorageService
 from cltl_service.chatui.service import ChatUiService
-from host.server import backend_server
+from cltl_service.vad.service import VadService
 from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
@@ -24,8 +25,9 @@ from werkzeug.serving import run_simple
 import host
 from cltl.eliza.api import Eliza
 from cltl.eliza.eliza import ElizaImpl
+from cltl_service.asr.service import AsrService
 from cltl_service.eliza.service import ElizaService
-
+from host.server import backend_server
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
@@ -87,6 +89,46 @@ class BackendContainer(InfraContainer):
         super().stop()
 
 
+class VADContainer(InfraContainer):
+    @property
+    @singleton
+    def vad_service(self) -> VadService:
+        storage = "/Users/tkb/automatic/workspaces/robo/eliza-parent/cltl-eliza-app/py-app/storage/audio/debug/vad"
+        return VadService.from_config(WebRtcVAD(storage=storage), self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start VAD")
+        super().start()
+        self.vad_service.start()
+
+    def stop(self):
+        logger.info("Stop VAD")
+        self.vad_service.stop()
+        super().stop()
+
+
+class ASRContainer(InfraContainer):
+    @property
+    @singleton
+    def asr_service(self) -> AsrService:
+        config = self.config_manager.get_config("cltl.asr")
+        model = config.get("model")
+        sampling_rate = config.get_int("sampling_rate")
+        storage = "/Users/tkb/automatic/workspaces/robo/eliza-parent/cltl-eliza-app/py-app/storage/audio/debug/asr"
+
+        return AsrService.from_config(Wav2Vec2ASR(model, sampling_rate, storage=storage), self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start ASR")
+        super().start()
+        self.asr_service.start()
+
+    def stop(self):
+        logger.info("Stop ASR")
+        self.asr_service.stop()
+        super().stop()
+
+
 class ChatUIContainer(InfraContainer):
     @property
     @singleton
@@ -131,7 +173,7 @@ class ElizaContainer(InfraContainer):
         super().stop()
 
 
-class ApplicationContainer(ElizaContainer, ChatUIContainer, BackendContainer):
+class ApplicationContainer(ElizaContainer, ChatUIContainer, VADContainer, BackendContainer):
     pass
 
 
@@ -142,6 +184,10 @@ if __name__ == '__main__':
 
     application = ApplicationContainer()
     application.start()
+
+    application.event_bus.subscribe("cltl.topic.microphone", lambda e: print("mic", e))
+    application.event_bus.subscribe("cltl.topic.vad", lambda e: print("vad", e))
+    application.event_bus.subscribe("cltl.topic.text_in", lambda e: print("text_in", e))
 
     web_app = DispatcherMiddleware(Flask("Eliza app"), {
         '/host': application.server,

@@ -10,6 +10,7 @@ cffi
 importlib_resources
 jiwer
 numpy
+webrtcvad
 sounddevice
 soundfile
 torch
