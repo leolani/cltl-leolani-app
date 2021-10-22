@@ -173,7 +173,7 @@ class ElizaContainer(InfraContainer):
         super().stop()
 
 
-class ApplicationContainer(ElizaContainer, ChatUIContainer, VADContainer, BackendContainer):
+class ApplicationContainer(ElizaContainer, ChatUIContainer, ASRContainer, VADContainer, BackendContainer):
     pass
 
 
