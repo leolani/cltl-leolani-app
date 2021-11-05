@@ -1,22 +1,8 @@
-cltl.backend
-cltl.asr
-cltl.vad
+cltl.backend[impl,host,service]
+cltl.asr[impl,service]
+cltl.vad[impl,service]
 cltl.chat-ui
 cltl.eliza
 
-# git+https://github.com/huggingface/datasets.git
-transformers
-cffi
-importlib_resources
-jiwer
-numpy
-webrtcvad
-sounddevice
-soundfile
-torch
-
-# app
-requests
 flask
 werkzeug
-pyaudio

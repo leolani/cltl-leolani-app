@@ -1,33 +1,34 @@
 import logging.config
 
+from cltl.eliza.api import Eliza
+from cltl.eliza.eliza import ElizaImpl
+from cltl_service.eliza.service import ElizaService
+from flask import Flask
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from werkzeug.serving import run_simple
+
+from cltl.asr.wav2vec_asr import Wav2Vec2ASR
+from cltl.backend.api.camera import CameraResolution
 from cltl.backend.api.microphone import Microphone
-from cltl.backend.api.storage import AudioStorage
-from cltl.backend.impl.cached_storage import CachedAudioStorage
+from cltl.backend.api.storage import AudioStorage, ImageStorage
+from cltl.backend.impl.cached_storage import CachedAudioStorage, CachedImageStorage
 from cltl.backend.impl.sync_microphone import SimpleMicrophone
-from cltl.backend.source.client_source import ClientAudioSource
+from cltl.backend.source.client_source import ClientAudioSource, ClientImageSource
 from cltl.backend.spi.audio import AudioSource
+from cltl.backend.spi.image import ImageSource
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
 from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
 from cltl.combot.infra.di_container import singleton
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
-from cltl.asr.wav2vec_asr import Wav2Vec2ASR
 from cltl.vad.webrtc_vad import WebRtcVAD
+from cltl_service.asr.service import AsrService
 from cltl_service.backend.backend import AudioBackendService
 from cltl_service.backend.storage import StorageService
 from cltl_service.chatui.service import ChatUiService
 from cltl_service.vad.service import VadService
-from flask import Flask
-from werkzeug.middleware.dispatcher import DispatcherMiddleware
-from werkzeug.serving import run_simple
-
-import host
-from cltl.eliza.api import Eliza
-from cltl.eliza.eliza import ElizaImpl
-from cltl_service.asr.service import AsrService
-from cltl_service.eliza.service import ElizaService
-from host.server import backend_server
+from host.server import BackendServer
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
@@ -49,8 +50,18 @@ class BackendContainer(InfraContainer):
 
     @property
     @singleton
+    def image_storage(self) -> ImageStorage:
+        return CachedImageStorage.from_config(self.config_manager)
+
+    @property
+    @singleton
     def audio_source(self) -> AudioSource:
         return ClientAudioSource.from_config(self.config_manager)
+
+    @property
+    @singleton
+    def image_source(self) -> ImageSource:
+        return ClientImageSource.from_config(self.config_manager)
 
     @property
     @singleton
@@ -65,16 +76,19 @@ class BackendContainer(InfraContainer):
     @property
     @singleton
     def storage_service(self) -> StorageService:
-        return StorageService(self.audio_storage)
+        return StorageService(self.audio_storage, self.image_storage)
 
     @property
     @singleton
     def server(self) -> Flask:
-        config = self.config_manager.get_config('cltl.audio')
+        audio_config = self.config_manager.get_config('cltl.audio')
+        video_config = self.config_manager.get_config('cltl.video')
+        server = BackendServer(audio_config.get_int('sampling_rate'), audio_config.get_int('channels'),
+                               audio_config.get_int('frame_size'),
+                               video_config.get_enum('resolution', CameraResolution),
+                               video_config.get_int('camera_index'))
 
-        return host.server.backend_server(config.get_int('sampling_rate'),
-                                          config.get_int('channels'),
-                                          config.get_int('frame_size'))
+        return server.app
 
     def start(self):
         logger.info("Start Backend")
@@ -177,7 +191,7 @@ class ApplicationContainer(ElizaContainer, ChatUIContainer, ASRContainer, VADCon
     pass
 
 
-if __name__ == '__main__':
+def main():
     ApplicationContainer.load_configuration()
 
     logger.info("Initialized Application")
@@ -188,6 +202,7 @@ if __name__ == '__main__':
     application.event_bus.subscribe("cltl.topic.microphone", lambda e: print("mic", e))
     application.event_bus.subscribe("cltl.topic.vad", lambda e: print("vad", e))
     application.event_bus.subscribe("cltl.topic.text_in", lambda e: print("text_in", e))
+    application.event_bus.subscribe("cltl.topic.text_out", lambda e: print("text_out", e))
 
     web_app = DispatcherMiddleware(Flask("Eliza app"), {
         '/host': application.server,
@@ -195,6 +210,10 @@ if __name__ == '__main__':
         '/chatui': application.chatui_service.app,
     })
 
-    run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=True, use_debugger=True, use_evalex=True)
+    run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
 
     application.stop()
+
+
+if __name__ == '__main__':
+    main()
