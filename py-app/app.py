@@ -28,7 +28,7 @@ from cltl_service.backend.backend import AudioBackendService
 from cltl_service.backend.storage import StorageService
 from cltl_service.chatui.service import ChatUiService
 from cltl_service.vad.service import VadService
-from host.server import BackendServer
+from cltl.backend.server import BackendServer
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
@@ -107,7 +107,10 @@ class VADContainer(InfraContainer):
     @property
     @singleton
     def vad_service(self) -> VadService:
-        storage = "/Users/tkb/automatic/workspaces/robo/eliza-parent/cltl-eliza-app/py-app/storage/audio/debug/vad"
+        # DEBUG
+        # storage = "/Users/tkb/automatic/workspaces/robo/eliza-parent/cltl-eliza-app/py-app/storage/audio/debug/vad"
+        storage = None
+
         return VadService.from_config(WebRtcVAD(storage=storage), self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
@@ -128,7 +131,9 @@ class ASRContainer(InfraContainer):
         config = self.config_manager.get_config("cltl.asr")
         model = config.get("model")
         sampling_rate = config.get_int("sampling_rate")
-        storage = "/Users/tkb/automatic/workspaces/robo/eliza-parent/cltl-eliza-app/py-app/storage/audio/debug/asr"
+        # DEBUG
+        # storage = "/Users/tkb/automatic/workspaces/robo/eliza-parent/cltl-eliza-app/py-app/storage/audio/debug/asr"
+        storage = None
 
         return AsrService.from_config(Wav2Vec2ASR(model, sampling_rate, storage=storage), self.event_bus, self.resource_manager, self.config_manager)
 
