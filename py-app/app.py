@@ -7,12 +7,15 @@ from cltl.backend.api.microphone import Microphone
 from cltl.backend.api.storage import AudioStorage, ImageStorage
 from cltl.backend.api.text_to_speech import TextToSpeech
 from cltl.backend.impl.cached_storage import CachedAudioStorage, CachedImageStorage
-from cltl.backend.impl.sync_microphone import SimpleMicrophone, SynchronizedMicrophone
-from cltl.backend.impl.sync_tts import SynchronizedTextToSpeech
+from cltl.backend.impl.image_camera import ImageCamera
+from cltl.backend.impl.sync_microphone import SynchronizedMicrophone
+from cltl.backend.impl.sync_tts import SynchronizedTextToSpeech, TextOutputTTS
 from cltl.backend.server import BackendServer
 from cltl.backend.source.client_source import ClientAudioSource, ClientImageSource
+from cltl.backend.source.console_source import ConsoleOutput
 from cltl.backend.spi.audio import AudioSource
 from cltl.backend.spi.image import ImageSource
+from cltl.backend.spi.text import TextOutput
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
 from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
@@ -34,29 +37,6 @@ from werkzeug.serving import run_simple
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
-
-
-class DummyStartable:
-    def start(self):
-        pass
-
-    def stop(self):
-        pass
-
-class DummyCamera(DummyStartable, Camera):
-    pass
-
-class DummyTTS(DummyStartable, TextToSpeech):
-    def say(self, text: str) -> None:
-        print("XXXX", text)
-
-    @property
-    def is_talking(self) -> bool:
-        return False
-
-    @property
-    def language(self) -> str:
-        return "en"
 
 
 class InfraContainer(SynchronousEventBusContainer, K8LocalConfigurationContainer, ThreadedResourceContainer):
@@ -90,19 +70,25 @@ class BackendContainer(InfraContainer):
 
     @property
     @singleton
+    def text_output(self) -> TextOutput:
+        return ConsoleOutput()
+
+    @property
+    @singleton
     def microphone(self) -> Microphone:
-        # return SimpleMicrophone(self.audio_source)
         return SynchronizedMicrophone(self.audio_source, self.resource_manager)
 
     @property
     @singleton
     def camera(self) -> Camera:
-        return DummyCamera()
+        config = self.config_manager.get_config("cltl.backend.image")
+
+        return ImageCamera(self.image_source, config.get_float("rate"))
 
     @property
     @singleton
     def tts(self) -> TextToSpeech:
-        return SynchronizedTextToSpeech(DummyTTS(), self.resource_manager)
+        return SynchronizedTextToSpeech(TextOutputTTS(self.text_output), self.resource_manager)
 
     @property
     @singleton
@@ -112,7 +98,7 @@ class BackendContainer(InfraContainer):
     @property
     @singleton
     def backend_service(self) -> BackendService:
-        return BackendService.from_config(self.backend, self.audio_storage,
+        return BackendService.from_config(self.backend, self.audio_storage, self.image_storage,
                                           self.event_bus, self.resource_manager, self.config_manager)
 
     @property
