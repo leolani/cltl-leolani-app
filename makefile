@@ -1,6 +1,7 @@
 SHELL = /bin/bash
 
 project_dependencies ?= $(addprefix $(project_root)/, \
+		emissor \
 		cltl-combot \
 		cltl-requirements \
 		cltl-backend \
