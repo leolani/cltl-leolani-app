@@ -8,11 +8,15 @@ This application also serves as a blue-print for applications in the combot fram
 
 ![Eliza app - Architectur](doc/ElizaCombot.png)
 
-### Backend Server
+### Components
+
+The application is composed from the following components:
+
+#### Backend Server
 
 The Backend Server is a standalone application that provides a REST API with the basic raw signals.
 
-### Backend Container
+#### Backend Container
 
 The Backend Container connects to the backend server to retrieve raw signals and processes them to
 make them available in the application. This involves:
@@ -21,25 +25,30 @@ make them available in the application. This involves:
 * Publish events for the incoming signals, pointing to the storage location where the raw data can be retrieved.
 * Subscribe to events that result in outgoing signals and send them to the backend server.
 
-### Voice Activity Detection (VAD)
+#### Voice Activity Detection (VAD)
 
 Subscribes to audio signal events and detects voice activity in the audio data. For detected voice activity,
 an event with the respective Mention on the audio signal is published.
 
-### Automatic Speech Recognition (ASR)
+#### Automatic Speech Recognition (ASR)
 
 Subscribes to voice activity events and transcribes audio data referenced in the voice activity annotation
 to text. For the transcribed text, a text signal event is published, referencing the respective segment in the
 AudioSignal.
 
-### Elize module
+#### Elize module
 
 Subscribes to text signals where the robot is not the speaker, processes the text and publishes a new text signal
 with a response.
 
-### Text To Speech (TTS)
+#### Text To Speech (TTS)
 
 Subscribes to text signals where the robot is the speaker, and converts the text to an audio signal.
+
+### Events
+
+The event payploads used to communicate between the individual modules follow the
+[EMISSOR](https://github.com/leolani/EMISSOR.git) framework. To be continued..
 
 ## Application Runtimes
 
@@ -102,20 +111,8 @@ Docker provides Docker compose and Docker swarm as a tool to orchestrate applica
 
 #### Kubernetes application
 
-A widely used tool for to run containerized applications is [Kubernetes].
+A widely used tool to run containerized applications is [Kubernetes](https://kubernetes.io).
 
 ## Development
 
-**TODO** Move to eliza-parent 
-
-### Workflow using PyCharm
-
-* Checkout the repository with submodules (recursive)
-* Build the project with `make build`. This will create all *venvs*.
-* Open `cltl-eliza-app` in PyCharm. PyCharm will list the workbench with this project name in `Recently Opened`.
-* Select and open all other projects in PyCharm and for each `Attach` to current workbench.
-Existing *venvs* will be used automatically by PyCharm.
-* Code changes in one module do not require any special workflow, try to add unit tests to make sure the code works. 
-* To make code changes visible across modules, run `make build` from the parent project to update `venvs`.
-* Commit and push the code changes in the individual modules.
-* Commit the submodules in the parent project when the application with its submodules is in a consistent state. 
+For the development workflow see the [eliza-parent](https://github.com/leolani/eliza-parent) project.
