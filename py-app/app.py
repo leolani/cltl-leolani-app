@@ -20,6 +20,7 @@ from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
 from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
 from cltl.combot.infra.di_container import singleton
+from cltl.combot.infra.event import Event
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
 from cltl.eliza.api import Eliza
@@ -27,6 +28,7 @@ from cltl.eliza.eliza import ElizaImpl
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl_service.asr.service import AsrService
 from cltl_service.backend.backend import BackendService
+from cltl_service.backend.schema import TextSignalEvent
 from cltl_service.backend.storage import StorageService
 from cltl_service.chatui.service import ChatUiService
 from cltl_service.eliza.service import ElizaService
@@ -233,10 +235,16 @@ def main():
     application = ApplicationContainer()
     application.start()
 
-    application.event_bus.subscribe("cltl.topic.microphone", lambda e: print("APP mic", e))
-    application.event_bus.subscribe("cltl.topic.vad", lambda e: print("APP vad", e))
-    application.event_bus.subscribe("cltl.topic.text_in", lambda e: print("APP text_in", e))
-    application.event_bus.subscribe("cltl.topic.text_out", lambda e: print("APP text_out", e))
+
+    def print_event(event: Event):
+        logger.info("APP event (%s): (%s)", event.metadata.topic, event.payload)
+    def print_text_event(event: Event[TextSignalEvent]):
+        logger.info("UTTERANCE event (%s): (%s)", event.metadata.topic, event.payload.signal.text)
+
+    application.event_bus.subscribe("cltl.topic.microphone", print_event)
+    application.event_bus.subscribe("cltl.topic.vad", print_event)
+    application.event_bus.subscribe("cltl.topic.text_in", print_text_event)
+    application.event_bus.subscribe("cltl.topic.text_out", print_text_event)
 
     web_app = DispatcherMiddleware(Flask("Eliza app"), {
         '/host': application.server,
