@@ -10,7 +10,7 @@ This application also serves as a blue-print for applications in the combot fram
 
 ### Components
 
-The application is composed from the following components:
+The application is composed of the following components:
 
 #### Backend Server
 
@@ -36,7 +36,7 @@ Subscribes to voice activity events and transcribes audio data referenced in the
 to text. For the transcribed text, a text signal event is published, referencing the respective segment in the
 AudioSignal.
 
-#### Elize module
+#### Eliza module
 
 Subscribes to text signals where the robot is not the speaker, processes the text and publishes a new text signal
 with a response.
@@ -44,6 +44,11 @@ with a response.
 #### Text To Speech (TTS)
 
 Subscribes to text signals where the robot is the speaker, and converts the text to an audio signal.
+
+#### Chat UI
+
+Subscribes to text signals and publishes text signals from user input. 
+
 
 ### Events
 
@@ -81,16 +86,13 @@ The local Python application is setup in the `py-app/` folder and has the follow
         ├── audio
         └── video
 
-The entry point of the application is the `app.py` script and from the `py-app/` directory after installing the necessary dependencies
+The entry point of the application is the `app.py` script and from the `py-app/` directory after running `make build`
+from the [eliza-parent](https://github.com/leolani/eliza-parent) it can be run via
 
-    python -m venv venv
     source venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
-
-it can be run via
-
     python app.py
+
+The Python application provides the Chat UI at [http://localhost:8000/chatui/static/chat.html]().
 
 ### Containerized application
 
@@ -115,4 +117,4 @@ A widely used tool to run containerized applications is [Kubernetes](https://kub
 
 ## Development
 
-For the development workflow see the [eliza-parent](https://github.com/leolani/eliza-parent) project.
+For the development workflow see the [cltl-combot](https://github.com/leolani/cltl-combot) project.
