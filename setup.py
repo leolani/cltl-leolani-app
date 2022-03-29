@@ -1,4 +1,4 @@
-from setuptools import setup, find_namespace_packages
+from setuptools import setup, find_packages
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -10,7 +10,7 @@ setup(
     name='cltl.eliza-app',
     version=version,
     package_dir={'': 'py-app'},
-    packages=find_namespace_packages(include=['*'], where='py-app'),
+    packages=find_packages(include=['*'], where='py-app'),
     data_files=[('VERSION', ['VERSION'])],
     url="https://github.com/leolani/cltl-eliza-app",
     license='MIT License',
@@ -30,6 +30,6 @@ setup(
         "werkzeug"
     ],
     entry_points={
-        'eliza': [ 'app:main']
+        'eliza': [ 'eliza = app:main']
     }
 )
