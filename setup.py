@@ -7,16 +7,16 @@ with open("VERSION", "r") as fh:
     version = fh.read().strip()
 
 setup(
-    name='cltl.eliza-app',
+    name='cltl.leolani-app',
     version=version,
     package_dir={'': 'py-app'},
     packages=find_packages(include=['*'], where='py-app'),
     data_files=[('VERSION', ['VERSION'])],
-    url="https://github.com/leolani/cltl-eliza-app",
+    url="https://github.com/leolani/cltl-leolani-app",
     license='MIT License',
     author='CLTL',
     author_email='t.baier@vu.nl',
-    description='VAD for Leolani',
+    description='Leolani app',
     long_description=long_description,
     long_description_content_type="text/markdown",
     python_requires='>=3.8',
@@ -30,6 +30,6 @@ setup(
         "werkzeug"
     ],
     entry_points={
-        'eliza': [ 'eliza = app:main']
+        'leolani': [ 'leolani = app:main']
     }
 )
