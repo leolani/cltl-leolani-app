@@ -7,7 +7,11 @@ project_dependencies ?= $(addprefix $(project_root)/, \
 		cltl-backend \
 		cltl-vad \
 		cltl-asr \
-		cltl-eliza \
+		cltl-emissor-data \
+		cltl-knowledgerepresentation \
+		cltl-knowledgeextraction \
+		cltl-languagegeneration \
+		cltl-leolani \
 		cltl-chat-ui)
 
 git_remote ?= https://github.com/leolani

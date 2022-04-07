@@ -2,7 +2,11 @@ cltl.backend[impl,host,service]
 cltl.asr[impl,service]
 cltl.vad[impl,service]
 cltl.chat-ui
-cltl.eliza
+cltl.brain
+cltl.triple_extraction
+cltl.reply_generation
+cltl.emissor-data[impl,service]
+cltl.leolani
 
 flask
 werkzeug

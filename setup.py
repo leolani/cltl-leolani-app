@@ -25,7 +25,8 @@ setup(
         "cltl.asr[impl,service]",
         "cltl.vad[impl,service]",
         "cltl.chat-ui",
-        "cltl.eliza",
+        "cltl.leolani",
+        "cltl.emissor-data[impl,service]",
         "flask",
         "werkzeug"
     ],
