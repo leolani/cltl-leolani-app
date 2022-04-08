@@ -8,6 +8,10 @@ import cltl.leolani.gestures as gestures
 import cltl.leolani.talk as talk
 import requests
 import time
+
+from cltl.emissordata.file_storage import EmissorDataFileStorage
+from cltl_service.emissordata.service import EmissorDataService
+
 from cltl import brain
 from cltl.backend.api.backend import Backend
 from cltl.backend.api.camera import CameraResolution, Camera
@@ -45,6 +49,7 @@ from cltl_service.backend.storage import StorageService
 from cltl_service.chatui.service import ChatUiService
 from cltl_service.leolani.service import LeolaniService
 from cltl_service.vad.service import VadService
+from cltl.emissordata.api import EmissorDataStorage
 ##### PIEK adaptations:
 from emissor.representation.scenario import TextSignal, Scenario, Modality
 from flask import Flask
@@ -226,6 +231,29 @@ class ASRContainer(InfraContainer):
         super().stop()
 
 
+class EmissorStorageContainer(InfraContainer):
+    @property
+    @singleton
+    def emissor_storage(self) -> EmissorDataStorage:
+        return EmissorDataFileStorage("./data/scenarios")
+
+    @property
+    @singleton
+    def emissor_data_service(self) -> LeolaniService:
+        return EmissorDataService.from_config(self.emissor_storage,
+                                              self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Emissor Data Storage")
+        super().start()
+        self.emissor_storage_service.start()
+
+    def stop(self):
+        logger.info("Stop Emissor Data Storage")
+        self.emissor_storage_service.stop()
+        super().stop()
+
+
 class ChatUIContainer(InfraContainer):
     @property
     @singleton
@@ -246,6 +274,7 @@ class ChatUIContainer(InfraContainer):
         logger.info("Stop Chat UI")
         self.chatui_service.stop()
         super().stop()
+
 
 class LeolaniContainer(InfraContainer):
     @property
