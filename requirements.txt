@@ -2,9 +2,9 @@ cltl.backend[impl,host,service]
 cltl.asr[impl,service]
 cltl.vad[impl,service]
 cltl.chat-ui
-cltl.brain
-cltl.triple_extraction
-cltl.reply_generation
+cltl.brain[service]
+cltl.triple_extraction[service]
+cltl.reply_generation[service]
 cltl.emissor-data[impl,service]
 cltl.leolani
 

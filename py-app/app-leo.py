@@ -1,18 +1,14 @@
 import logging.config
 import pathlib
 import random
+import time
 import uuid
+from typing import Union
 
 import cltl.leolani.emissor_api as emissor_api
 import cltl.leolani.gestures as gestures
 import cltl.leolani.talk as talk
 import requests
-import time
-
-from cltl.emissordata.file_storage import EmissorDataFileStorage
-from cltl_service.emissordata.service import EmissorDataService
-
-from cltl import brain
 from cltl.backend.api.backend import Backend
 from cltl.backend.api.camera import CameraResolution, Camera
 from cltl.backend.api.microphone import Microphone
@@ -27,6 +23,7 @@ from cltl.backend.source.client_source import ClientAudioSource, ClientImageSour
 from cltl.backend.spi.audio import AudioSource
 from cltl.backend.spi.image import ImageSource
 from cltl.backend.spi.text import TextOutput
+from cltl.brain.long_term_memory import LongTermMemory
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
 from cltl.combot.event.emissor import ScenarioStarted, ScenarioStopped, LeolaniContext
@@ -36,6 +33,8 @@ from cltl.combot.infra.event import Event
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
 from cltl.combot.infra.time_util import timestamp_now
+from cltl.emissordata.api import EmissorDataStorage
+from cltl.emissordata.file_storage import EmissorDataFileStorage
 from cltl.leolani.api import Leolani
 from cltl.leolani.leolani import LeolaniImpl
 from cltl.reply_generation.lenka_replier import LenkaReplier
@@ -46,11 +45,13 @@ from cltl_service.asr.service import AsrService
 from cltl_service.backend.backend import BackendService
 from cltl_service.backend.schema import TextSignalEvent
 from cltl_service.backend.storage import StorageService
+from cltl_service.brain.service import BrainService
 from cltl_service.chatui.service import ChatUiService
+from cltl_service.emissordata.service import EmissorDataService
 from cltl_service.leolani.service import LeolaniService
+from cltl_service.reply_generation.service import ReplyGenerationService
+from cltl_service.triple_extraction.service import TripleExtractionService
 from cltl_service.vad.service import VadService
-from cltl.emissordata.api import EmissorDataStorage
-##### PIEK adaptations:
 from emissor.representation.scenario import TextSignal, Scenario, Modality
 from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
@@ -58,6 +59,36 @@ from werkzeug.serving import run_simple
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
+
+
+class DisplayComponent:
+    """
+    Show content on the robot's display.
+    """
+
+    def __init__(self):
+        super(DisplayComponent, self).__init__()
+
+        self._log.debug("Initializing DisplayComponent")
+
+    def show_on_display(self, url):
+        # type: (Union[str, unicode]) -> None
+        """
+        Show URL
+
+        Parameters
+        ----------
+        url: str
+            WebPage/Image URL
+        """
+        event = Event({'url': url}, None)
+        self.event_bus.publish(TOPIC, event)
+
+    def hide_display(self):
+        # type: () -> None
+        """Hide whatever is shown on the display"""
+        event = Event({'url': None}, None)
+        self.event_bus.publish(TOPIC, event)
 
 
 class InfraContainer(SynchronousEventBusContainer, K8LocalConfigurationContainer, ThreadedResourceContainer):
@@ -79,6 +110,7 @@ class RemoteTextOutput(TextOutput):
         response = f"\\^startTag({animation}){text}^stopTag({animation})"  #### cannot pass in strings with quotes!!
 
         requests.post("http://192.168.1.176:8000/text", data=response, headers=tts_headers)
+
 
 class BackendContainer(InfraContainer):
     @property
@@ -105,7 +137,7 @@ class BackendContainer(InfraContainer):
     @singleton
     def text_output(self) -> TextOutput:
         return RemoteTextOutput()
-       # return ConsoleOutput()        # Piek
+        # return ConsoleOutput()  # Piek
 
     @property
     @singleton
@@ -254,6 +286,96 @@ class EmissorStorageContainer(InfraContainer):
         super().stop()
 
 
+class TripleExtrationContainer(InfraContainer):
+    @property
+    @singleton
+    def triple_extraction_service(self) -> TripleExtractionService:
+        config = self.config_manager.get_config("cltl.triple_extraction")
+        implementation = config.get("implementation")
+
+        if implementation == "CFGAnalyzer":
+            from cltl.triple_extraction.cfg_analyzer import CFGAnalyzer
+            analyzer = CFGAnalyzer()
+        elif implementation == "OIEAnalyzer":
+            from cltl.triple_extraction.oie_analyzer import OIEAnalyzer
+            analyzer = OIEAnalyzer()
+        elif implementation == "spacyAnalyzer":
+            from cltl.triple_extraction.spacy_analyzer import spacyAnalyzer
+            analyzer = spacyAnalyzer()
+        else:
+            raise ValueError("Unsupported implementation " + implementation)
+
+        return TripleExtractionService.from_config(analyzer, self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Triple Extraction")
+        super().start()
+        self.triple_extraction_service.start()
+
+    def stop(self):
+        logger.info("Stop Triple Extraction")
+        self.triple_extraction_service.stop()
+        super().stop()
+
+
+class BrainContainer(InfraContainer):
+    @property
+    @singleton
+    def brain_service(self) -> BrainService:
+        config = self.config_manager.get_config("cltl.brain")
+        brain_address = config.get("address")
+        brain_log_dir = config.get("log_dir")
+
+        # TODO figure out how to put the brain RDF files in the EMISSOR scenario folder
+        brain = LongTermMemory(address=brain_address,
+                               log_dir=pathlib.Path(brain_log_dir),
+                               clear_all=False)
+
+        return BrainService.from_config(brain, self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Brain")
+        super().start()
+        self.brain_service.start()
+
+    def stop(self):
+        logger.info("Stop Brain")
+        self.brain_service.stop()
+        super().stop()
+
+
+class ReplierContainer(InfraContainer):
+    @property
+    @singleton
+    def reply_service(self) -> ReplyGenerationService:
+        config = self.config_manager.get_config("cltl.reply_generation")
+        implementations = config.get("implementations")
+        repliers = []
+
+        if "LenkaReplier" in implementations:
+            from cltl.reply_generation.lenka_replier import LenkaReplier
+            replier = LenkaReplier()
+            repliers.append(replier)
+        if "RLReplier" in implementations:
+            from cltl.reply_generation.rl_replier import RLReplier
+            replier = RLReplier()
+            repliers.append(replier)
+        if not repliers:
+            raise ValueError("Unsupported implementation " + implementations)
+
+        return ReplyGenerationService.from_config(repliers, self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Brain")
+        super().start()
+        self.brain_service.start()
+
+    def stop(self):
+        logger.info("Stop Brain")
+        self.brain_service.stop()
+        super().stop()
+
+
 class ChatUIContainer(InfraContainer):
     @property
     @singleton
@@ -316,11 +438,11 @@ def main():
 
     replier = LenkaReplier()
     analyzer = CFGAnalyzer()
-    #analyzer = spacyAnalyzer()
+    # analyzer = spacyAnalyzer()
 
     # Initialise the brain in GraphDB
     log_path = pathlib.Path("")
-    my_brain = brain.LongTermMemory(address="http://localhost:7200/repositories/sandbox", log_dir=log_path,  clear_all=True)
+    my_brain = LongTermMemory(address="http://localhost:7200/repositories/sandbox", log_dir=log_path, clear_all=True)
 
     def print_event(event: Event):
         logger.info("APP event (%s): (%s)", event.metadata.topic, event.payload)
@@ -332,16 +454,17 @@ def main():
         textSignal = TextSignal.for_scenario(None, 0, 0, None, event.payload.signal.text)
         emissor_api.add_speaker_annotation(textSignal, HUMAN_ID)
 
-        reply_textSignal = talk.understand_remember_reply(None, textSignal, chat, replier, analyzer, AGENT, HUMAN_ID, my_brain, None, None, logger)
+        reply_textSignal = talk.understand_remember_reply(None, textSignal, chat, replier, analyzer, AGENT, HUMAN_ID,
+                                                          my_brain, None, None, logger)
 
         emissor_api.add_speaker_annotation(reply_textSignal, AGENT)
         modifiedPayload = TextSignalEvent.create(reply_textSignal)
         modifiedEvent = Event.for_payload(modifiedPayload)
         application.event_bus.publish("cltl.topic.text_out", modifiedEvent)
         logger.info("UTTERANCE reply (%s): (%s)", modifiedEvent.metadata.topic, modifiedEvent.payload.signal.text)
-        
+
     def repeat_text_event(event: Event[TextSignalEvent]):
-        textSignal = TextSignal.for_scenario(None, 0, 0, None, "You said:"+event.payload.signal.text)
+        textSignal = TextSignal.for_scenario(None, 0, 0, None, "You said:" + event.payload.signal.text)
         #### Parrot
         modifiedPayload = TextSignalEvent.create(textSignal)
         modifiedEvent = Event.for_payload(modifiedPayload)
@@ -354,13 +477,13 @@ def main():
         emissor_api.add_speaker_annotation(textSignal, AGENT)
         logger.info("UTTERANCE event (%s): (%s)", event.metadata.topic, event.payload.signal.text)
 
-
     application.event_bus.subscribe("cltl.topic.microphone", print_event)
     application.event_bus.subscribe("cltl.topic.image", print_event)
     application.event_bus.subscribe("cltl.topic.vad", print_event)
     application.event_bus.subscribe("cltl.topic.text_in", print_text_event_speaker)
-    application.event_bus.subscribe("cltl.topic.text_in",  repeat_text_event)
+    application.event_bus.subscribe("cltl.topic.text_in", repeat_text_event)
     application.event_bus.subscribe("cltl.topic.text_out", print_text_event_agent)
+    application.event_bus.subscribe("cltl.topic.triple_extraction", print_event)
 
     application.start()
 
