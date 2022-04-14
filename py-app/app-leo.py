@@ -2,6 +2,8 @@ import logging.config
 import pathlib
 import random
 import time
+import uuid
+from typing import Union
 
 import cltl.leolani.emissor_api as emissor_api
 import cltl.leolani.gestures as gestures
@@ -18,18 +20,21 @@ from cltl.backend.impl.sync_microphone import SynchronizedMicrophone
 from cltl.backend.impl.sync_tts import SynchronizedTextToSpeech, TextOutputTTS
 from cltl.backend.server import BackendServer
 from cltl.backend.source.client_source import ClientAudioSource, ClientImageSource
-from cltl.backend.source.console_source import ConsoleOutput
 from cltl.backend.spi.audio import AudioSource
 from cltl.backend.spi.image import ImageSource
 from cltl.backend.spi.text import TextOutput
 from cltl.brain.long_term_memory import LongTermMemory
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
+from cltl.combot.event.emissor import ScenarioStarted, ScenarioStopped, LeolaniContext
 from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
 from cltl.combot.infra.di_container import singleton
 from cltl.combot.infra.event import Event
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
+from cltl.combot.infra.time_util import timestamp_now
+from cltl.emissordata.api import EmissorDataStorage
+from cltl.emissordata.file_storage import EmissorDataFileStorage
 from cltl.leolani.api import Leolani
 from cltl.leolani.leolani import LeolaniImpl
 from cltl.reply_generation.lenka_replier import LenkaReplier
@@ -42,11 +47,12 @@ from cltl_service.backend.schema import TextSignalEvent
 from cltl_service.backend.storage import StorageService
 from cltl_service.brain.service import BrainService
 from cltl_service.chatui.service import ChatUiService
+from cltl_service.emissordata.service import EmissorDataService
 from cltl_service.leolani.service import LeolaniService
 from cltl_service.reply_generation.service import ReplyGenerationService
 from cltl_service.triple_extraction.service import TripleExtractionService
 from cltl_service.vad.service import VadService
-from emissor.representation.scenario import TextSignal
+from emissor.representation.scenario import TextSignal, Scenario, Modality
 from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
@@ -257,6 +263,29 @@ class ASRContainer(InfraContainer):
         super().stop()
 
 
+class EmissorStorageContainer(InfraContainer):
+    @property
+    @singleton
+    def emissor_storage(self) -> EmissorDataStorage:
+        return EmissorDataFileStorage("./data/scenarios")
+
+    @property
+    @singleton
+    def emissor_data_service(self) -> LeolaniService:
+        return EmissorDataService.from_config(self.emissor_storage,
+                                              self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Emissor Data Storage")
+        super().start()
+        self.emissor_storage_service.start()
+
+    def stop(self):
+        logger.info("Stop Emissor Data Storage")
+        self.emissor_storage_service.stop()
+        super().stop()
+
+
 class TripleExtrationContainer(InfraContainer):
     @property
     @singleton
@@ -402,18 +431,9 @@ def main():
 
     application = ApplicationContainer()
 
-    # Start a scenario
-    ##### Setting the agents
-    AGENT = "Leolani"
-    HUMAN_NAME = "Piek"
-    HUMAN_ID = "Piek"
-    DATA = "./data"
-    scenarioStorage, scenario_ctrl, imagefolder, rdffolder, location, place_id = emissor_api.start_a_scenario(AGENT,
-                                                                                                              HUMAN_ID,
-                                                                                                              HUMAN_NAME,
-                                                                                                              DATA)
-
     # Initialise a chat
+    AGENT = "Leolani"
+    HUMAN_ID = "Piek"
     chat = Chat(HUMAN_ID)
 
     replier = LenkaReplier()
@@ -421,7 +441,7 @@ def main():
     # analyzer = spacyAnalyzer()
 
     # Initialise the brain in GraphDB
-    log_path = pathlib.Path(rdffolder)
+    log_path = pathlib.Path("")
     my_brain = LongTermMemory(address="http://localhost:7200/repositories/sandbox", log_dir=log_path, clear_all=True)
 
     def print_event(event: Event):
@@ -433,14 +453,11 @@ def main():
     def print_text_event_speaker(event: Event[TextSignalEvent]):
         textSignal = TextSignal.for_scenario(None, 0, 0, None, event.payload.signal.text)
         emissor_api.add_speaker_annotation(textSignal, HUMAN_ID)
-        scenario_ctrl.append_signal(textSignal)
 
-        # TODO: remove
-        reply_textSignal = talk.understand_remember_reply(scenario_ctrl, textSignal, chat, replier, analyzer, AGENT,
-                                                          HUMAN_ID, my_brain, location, place_id, logger)
+        reply_textSignal = talk.understand_remember_reply(None, textSignal, chat, replier, analyzer, AGENT, HUMAN_ID,
+                                                          my_brain, None, None, logger)
 
         emissor_api.add_speaker_annotation(reply_textSignal, AGENT)
-        scenario_ctrl.append_signal(reply_textSignal)
         modifiedPayload = TextSignalEvent.create(reply_textSignal)
         modifiedEvent = Event.for_payload(modifiedPayload)
         application.event_bus.publish("cltl.topic.text_out", modifiedEvent)
@@ -453,19 +470,12 @@ def main():
         modifiedEvent = Event.for_payload(modifiedPayload)
         application.event_bus.publish("cltl.topic.text_out", modifiedEvent)
         emissor_api.add_speaker_annotation(textSignal, HUMAN_ID)
-        scenario_ctrl.append_signal(textSignal)
         logger.info("UTTERANCE event (%s): (%s)", modifiedEvent.metadata.topic, modifiedEvent.payload.signal.text)
 
     def print_text_event_agent(event: Event[TextSignalEvent]):
         textSignal = TextSignal.for_scenario(None, 0, 0, None, event.payload.signal.text)
         emissor_api.add_speaker_annotation(textSignal, AGENT)
-        scenario_ctrl.append_signal(textSignal)
         logger.info("UTTERANCE event (%s): (%s)", event.metadata.topic, event.payload.signal.text)
-
-    def watch_event(event: Event):
-        ##imageSignal = ImageSignal.for_scenario()
-        logger.info("WATCH event (%s): (%s)", event.metadata.topic, event.payload.signal.image)
-        # watch_and_remember(scenario_ctrl, camera, imagefolder, my_brain, location, place_id)
 
     application.event_bus.subscribe("cltl.topic.microphone", print_event)
     application.event_bus.subscribe("cltl.topic.image", print_event)
@@ -477,6 +487,15 @@ def main():
 
     application.start()
 
+    signals = {
+        Modality.IMAGE.name.lower(): "./image.json",
+        Modality.TEXT.name.lower(): "./text.json"
+    }
+
+    scenario_context = LeolaniContext(AGENT, HUMAN_ID, str(uuid.uuid4()), get_location())
+    scenario = Scenario.new_instance(str(uuid.uuid4()), timestamp_now(), None, scenario_context, signals)
+    application.event_bus.publish("cltl.topics.scenario", Event.for_payload(ScenarioStarted.create(scenario)))
+
     web_app = DispatcherMiddleware(Flask("Leolani app"), {
         '/host': application.server,
         '/storage': application.storage_service.app,
@@ -485,11 +504,19 @@ def main():
 
     run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
 
-    # Save the scenario
-    scenario_ctrl.scenario.ruler.end = int(time.time() * 1e3)
-    scenarioStorage.save_scenario(scenario_ctrl)
+    scenario.ruler.end = timestamp_now()
+    application.event_bus.publish("cltl.topics.scenario", Event.for_payload(ScenarioStopped.create(scenario)))
+
+    time.sleep(1)
 
     application.stop()
+
+
+def get_location():
+    try:
+        return requests.get("https://ipinfo.io").json()
+    except:
+        return None
 
 
 if __name__ == '__main__':
