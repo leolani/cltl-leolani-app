@@ -1,4 +1,4 @@
-# cltl-eliza
+# cltl-leolani-app
 
 Eliza implementation using the combot framework.
 

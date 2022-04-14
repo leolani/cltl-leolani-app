@@ -135,3 +135,5 @@ makefile.d
 
 # Helm
 k8-app/charts/
+
+py-app/data/scenarios/*
