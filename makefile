@@ -5,12 +5,15 @@ project_dependencies ?= $(addprefix $(project_root)/, \
 		cltl-combot \
 		cltl-requirements \
 		cltl-backend \
+		cltl-face-recognition \
+		cltl-object-recognition \
 		cltl-vad \
 		cltl-asr \
 		cltl-emissor-data \
 		cltl-knowledgerepresentation \
 		cltl-knowledgeextraction \
 		cltl-languagegeneration \
+		cltl-eliza \
 		cltl-leolani \
 		cltl-chat-ui)
 
