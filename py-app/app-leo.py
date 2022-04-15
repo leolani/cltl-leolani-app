@@ -80,6 +80,9 @@ class InfraContainer(SynchronousEventBusContainer, K8LocalConfigurationContainer
 
 
 class RemoteTextOutput(TextOutput):
+    def __init__(self, remote_url: str):
+        self._remote_url = remote_url
+
     def consume(self, text: str, language=None):
         tts_headers = {'Content-type': 'text/plain'}
 
@@ -89,7 +92,7 @@ class RemoteTextOutput(TextOutput):
 
         response = f"\\^startTag({animation}){text}^stopTag({animation})"  #### cannot pass in strings with quotes!!
 
-        requests.post("http://192.168.1.176:8000/text", data=response, headers=tts_headers)
+        requests.post(f"http://{self._remote_url}/text", data=response, headers=tts_headers)
 
 
 class BackendContainer(InfraContainer):
@@ -116,8 +119,12 @@ class BackendContainer(InfraContainer):
     @property
     @singleton
     def text_output(self) -> TextOutput:
-        # return RemoteTextOutput()
-        return ConsoleOutput()        # Piek
+        config = self.config_manager.get_config("cltl.backend.text_output")
+        remote_url = config.get("remote_url")
+        if remote_url:
+            return RemoteTextOutput(remote_url)
+        else:
+            return ConsoleOutput()
 
     @property
     @singleton
