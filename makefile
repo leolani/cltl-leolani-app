@@ -28,3 +28,7 @@ include makefile.helm.mk
 
 .PHONY: build
 build: venv
+
+.PHONY: clean
+clean:
+	rm -rf venv dist
