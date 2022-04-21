@@ -25,7 +25,7 @@ from cltl.backend.spi.image import ImageSource
 from cltl.backend.spi.text import TextOutput
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
-from cltl.combot.event.emissor import ScenarioStarted, ScenarioStopped, LeolaniContext
+from cltl.combot.event.emissor import ScenarioStarted, ScenarioStopped, LeolaniContext, TextSignalEvent
 from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
 from cltl.combot.infra.di_container import singleton
 from cltl.combot.infra.event import Event
@@ -39,9 +39,9 @@ from cltl.leolani.leolani import LeolaniImpl
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl_service.asr.service import AsrService
 from cltl_service.backend.backend import BackendService
-from cltl_service.backend.schema import TextSignalEvent
 from cltl_service.backend.storage import StorageService
 from cltl_service.chatui.service import ChatUiService
+from cltl_service.emissordata.client import EmissorDataClient
 from cltl_service.emissordata.service import EmissorDataService
 from cltl_service.leolani.service import LeolaniService
 from cltl_service.vad.service import VadService
@@ -184,6 +184,35 @@ class BackendContainer(InfraContainer):
         super().stop()
 
 
+class EmissorStorageContainer(InfraContainer):
+    @property
+    @singleton
+    def emissor_storage(self) -> EmissorDataStorage:
+        config = self.config_manager.get_config("cltl.emissor-data")
+        return EmissorDataFileStorage(config.get("path"))
+
+    @property
+    @singleton
+    def emissor_data_service(self) -> EmissorDataService:
+        return EmissorDataService.from_config(self.emissor_storage,
+                                              self.event_bus, self.resource_manager, self.config_manager)
+
+    @property
+    @singleton
+    def emissor_data_client(self) -> EmissorDataClient:
+        return EmissorDataClient("http://0.0.0.0:8000/emissor")
+
+    def start(self):
+        logger.info("Start Emissor Data Storage")
+        super().start()
+        self.emissor_data_service.start()
+
+    def stop(self):
+        logger.info("Stop Emissor Data Storage")
+        self.emissor_data_service.stop()
+        super().stop()
+
+
 class VADContainer(InfraContainer):
     @property
     @singleton
@@ -212,7 +241,7 @@ class VADContainer(InfraContainer):
         super().stop()
 
 
-class ASRContainer(InfraContainer):
+class ASRContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def asr_service(self) -> AsrService:
@@ -237,7 +266,8 @@ class ASRContainer(InfraContainer):
         else:
             raise ValueError("Unsupported implementation " + implementation)
 
-        return AsrService.from_config(asr, self.event_bus, self.resource_manager, self.config_manager)
+        return AsrService.from_config(asr, self.emissor_data_client,
+                                      self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start ASR")
@@ -247,30 +277,6 @@ class ASRContainer(InfraContainer):
     def stop(self):
         logger.info("Stop ASR")
         self.asr_service.stop()
-        super().stop()
-
-
-class EmissorStorageContainer(InfraContainer):
-    @property
-    @singleton
-    def emissor_storage(self) -> EmissorDataStorage:
-        config = self.config_manager.get_config("cltl.emissor-data")
-        return EmissorDataFileStorage(config.get("path"))
-
-    @property
-    @singleton
-    def emissor_data_service(self) -> EmissorDataService:
-        return EmissorDataService.from_config(self.emissor_storage,
-                                              self.event_bus, self.resource_manager, self.config_manager)
-
-    def start(self):
-        logger.info("Start Emissor Data Storage")
-        super().start()
-        self.emissor_data_service.start()
-
-    def stop(self):
-        logger.info("Stop Emissor Data Storage")
-        self.emissor_data_service.stop()
         super().stop()
 
 
@@ -335,7 +341,7 @@ class BrainContainer(InfraContainer):
         super().stop()
 
 
-class ReplierContainer(BrainContainer, InfraContainer):
+class ReplierContainer(BrainContainer, EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def reply_service(self) -> ReplyGenerationService:
@@ -355,7 +361,7 @@ class ReplierContainer(BrainContainer, InfraContainer):
         if not repliers:
             raise ValueError("Unsupported implementation " + implementations)
 
-        return ReplyGenerationService.from_config(repliers, self.event_bus, self.resource_manager, self.config_manager)
+        return ReplyGenerationService.from_config(repliers, self.emissor_data_client, self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start Brain")
@@ -439,7 +445,7 @@ class VectorIdContainer(InfraContainer):
         super().stop()
 
 
-class ChatUIContainer(InfraContainer):
+class ChatUIContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def chats(self) -> Chats:
@@ -448,7 +454,7 @@ class ChatUIContainer(InfraContainer):
     @property
     @singleton
     def chatui_service(self) -> ChatUiService:
-        return ChatUiService.from_config(MemoryChats(), self.event_bus, self.resource_manager, self.config_manager)
+        return ChatUiService.from_config(MemoryChats(), self.emissor_data_client, self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start Chat UI")
@@ -483,11 +489,11 @@ class LeolaniContainer(InfraContainer):
         super().stop()
 
 
-class ApplicationContainer(ChatUIContainer, EmissorStorageContainer,
+class ApplicationContainer(ChatUIContainer,
                            TripleExtractionContainer, ReplierContainer, BrainContainer,
                            FaceRecognitionContainer, VectorIdContainer, ObjectRecognitionContainer,
                            ASRContainer, VADContainer,
-                           BackendContainer):
+                           EmissorStorageContainer, BackendContainer):
     pass
 
 
@@ -569,6 +575,7 @@ def main():
     web_app = DispatcherMiddleware(Flask("Leolani app"), {
         '/host': application.server,
         '/storage': application.storage_service.app,
+        '/emissor': application.emissor_data_service.app,
         '/chatui': application.chatui_service.app,
     })
 

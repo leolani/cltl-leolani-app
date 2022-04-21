@@ -26,7 +26,7 @@ setup(
         "cltl.vad[impl,service]",
         "cltl.chat-ui",
         "cltl.leolani",
-        "cltl.emissor-data[impl,service]",
+        "cltl.emissor-data[impl,service,client]",
         "cltl.brain[service]",
         "cltl.triple_extraction[service]",
         "cltl.reply_generation[service]",

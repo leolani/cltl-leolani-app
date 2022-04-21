@@ -6,7 +6,7 @@ cltl.object-recognition[impl,service]
 cltl.brain[service]
 cltl.triple_extraction[service]
 cltl.reply_generation[impl, service]
-cltl.emissor-data[impl,service]
+cltl.emissor-data[impl,service,client]
 cltl.leolani
 cltl.chat-ui[service]
 cltl.eliza
