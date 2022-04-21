@@ -28,7 +28,7 @@ from cltl.eliza.eliza import ElizaImpl
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl_service.asr.service import AsrService
 from cltl_service.backend.backend import BackendService
-from cltl_service.backend.schema import TextSignalEvent
+from cltl.combot.event.emissor import TextSignalEvent
 from cltl_service.backend.storage import StorageService
 from cltl_service.chatui.service import ChatUiService
 from cltl_service.eliza.service import ElizaService
