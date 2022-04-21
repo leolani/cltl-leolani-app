@@ -8,3 +8,9 @@ rm storage/audio/*.json
 
 rm storage/video/*.png
 rm storage/video/*.json
+
+rm -r storage/rdf/**/*
+rmdir storage/rdf/*
+
+rm -r storage/emissor/**/*
+rmdir storage/emissor/*

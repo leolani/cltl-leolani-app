@@ -254,7 +254,8 @@ class EmissorStorageContainer(InfraContainer):
     @property
     @singleton
     def emissor_storage(self) -> EmissorDataStorage:
-        return EmissorDataFileStorage("./data/scenarios")
+        config = self.config_manager.get_config("cltl.emissor-data")
+        return EmissorDataFileStorage(config.get("path"))
 
     @property
     @singleton
@@ -510,10 +511,10 @@ def main():
     log_path = pathlib.Path("")
     my_brain = LongTermMemory(address="http://localhost:7200/repositories/sandbox", log_dir=log_path, clear_all=True)
 
-
     signals = {
         Modality.IMAGE.name.lower(): "./image.json",
-        Modality.TEXT.name.lower(): "./text.json"
+        Modality.TEXT.name.lower(): "./text.json",
+        Modality.AUDIO.name.lower(): "./audio.json"
     }
 
     scenario_context = LeolaniContext(AGENT, HUMAN_ID, str(uuid.uuid4()), get_location())
@@ -552,6 +553,7 @@ def main():
         emissor_api.add_speaker_annotation(textSignal, AGENT)
         logger.info("UTTERANCE event (%s): (%s)", event.metadata.topic, event.payload.signal.text)
 
+    application.event_bus.subscribe("cltl.topic.scenario", print_event)
     application.event_bus.subscribe("cltl.topic.microphone", print_event)
     application.event_bus.subscribe("cltl.topic.image", print_event)
     application.event_bus.subscribe("cltl.topic.vad", print_event)
@@ -562,7 +564,7 @@ def main():
 
     application.start()
 
-    application.event_bus.publish("cltl.topics.scenario", Event.for_payload(ScenarioStarted.create(scenario)))
+    application.event_bus.publish("cltl.topic.scenario", Event.for_payload(ScenarioStarted.create(scenario)))
 
     web_app = DispatcherMiddleware(Flask("Leolani app"), {
         '/host': application.server,
@@ -573,7 +575,7 @@ def main():
     run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
 
     scenario.ruler.end = timestamp_now()
-    application.event_bus.publish("cltl.topics.scenario", Event.for_payload(ScenarioStopped.create(scenario)))
+    application.event_bus.publish("cltl.topic.scenario", Event.for_payload(ScenarioStopped.create(scenario)))
 
     time.sleep(1)
 
