@@ -1,13 +1,11 @@
 import logging.config
 import pathlib
 import random
+import time
 import uuid
 
-import cltl.leolani.emissor_api as emissor_api
 import cltl.leolani.gestures as gestures
-import cltl.leolani.talk as talk
 import requests
-import time
 from cltl.backend.api.backend import Backend
 from cltl.backend.api.camera import CameraResolution, Camera
 from cltl.backend.api.microphone import Microphone
@@ -23,6 +21,7 @@ from cltl.backend.source.console_source import ConsoleOutput
 from cltl.backend.spi.audio import AudioSource
 from cltl.backend.spi.image import ImageSource
 from cltl.backend.spi.text import TextOutput
+from cltl.brain.long_term_memory import LongTermMemory
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
 from cltl.combot.event.emissor import ScenarioStarted, ScenarioStopped, LeolaniContext, TextSignalEvent
@@ -34,38 +33,31 @@ from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
 from cltl.combot.infra.time_util import timestamp_now
 from cltl.emissordata.api import EmissorDataStorage
 from cltl.emissordata.file_storage import EmissorDataFileStorage
-from cltl.leolani.api import Leolani
-from cltl.leolani.leolani import LeolaniImpl
-from cltl.vad.webrtc_vad import WebRtcVAD
-from cltl_service.asr.service import AsrService
-from cltl_service.backend.backend import BackendService
-from cltl_service.backend.storage import StorageService
-from cltl_service.chatui.service import ChatUiService
-from cltl_service.emissordata.client import EmissorDataClient
-from cltl_service.emissordata.service import EmissorDataService
-from cltl_service.leolani.service import LeolaniService
-from cltl_service.vad.service import VadService
-from emissor.representation.scenario import TextSignal, Scenario, Modality
-from flask import Flask
-from werkzeug.middleware.dispatcher import DispatcherMiddleware
-from werkzeug.serving import run_simple
-
-from cltl.brain.long_term_memory import LongTermMemory
 from cltl.face_recognition.api import FaceDetector
 from cltl.face_recognition.proxy import FaceDetectorProxy
 from cltl.object_recognition.api import ObjectDetector
 from cltl.object_recognition.proxy import ObjectDetectorProxy
-from cltl.reply_generation.lenka_replier import LenkaReplier
-from cltl.triple_extraction.api import Chat
-from cltl.triple_extraction.cfg_analyzer import CFGAnalyzer
+from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl.vector_id.api import VectorIdentity
 from cltl.vector_id.clusterid import ClusterIdentity
+from cltl_service.asr.service import AsrService
+from cltl_service.backend.backend import BackendService
+from cltl_service.backend.storage import StorageService
 from cltl_service.brain.service import BrainService
+from cltl_service.chatui.service import ChatUiService
+from cltl_service.emissordata.client import EmissorDataClient
+from cltl_service.emissordata.service import EmissorDataService
 from cltl_service.face_recognition.service import FaceRecognitionService
+from cltl_service.leolani.service import LeolaniService
 from cltl_service.object_recognition.service import ObjectRecognitionService
 from cltl_service.reply_generation.service import ReplyGenerationService
 from cltl_service.triple_extraction.service import TripleExtractionService
+from cltl_service.vad.service import VadService
 from cltl_service.vector_id.service import VectorIdService
+from emissor.representation.scenario import Scenario, Modality
+from flask import Flask
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from werkzeug.serving import run_simple
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
