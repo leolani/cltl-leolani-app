@@ -1,6 +1,13 @@
 import logging.config
+import pathlib
+import random
+import uuid
 
-from cltl.asr.speechbrain_asr import SpeechbrainASR
+import cltl.leolani.emissor_api as emissor_api
+import cltl.leolani.gestures as gestures
+import cltl.leolani.talk as talk
+import requests
+import time
 from cltl.backend.api.backend import Backend
 from cltl.backend.api.camera import CameraResolution, Camera
 from cltl.backend.api.microphone import Microphone
@@ -18,24 +25,47 @@ from cltl.backend.spi.image import ImageSource
 from cltl.backend.spi.text import TextOutput
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
+from cltl.combot.event.emissor import ScenarioStarted, ScenarioStopped, LeolaniContext, TextSignalEvent
 from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
 from cltl.combot.infra.di_container import singleton
 from cltl.combot.infra.event import Event
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
-from cltl.eliza.api import Eliza
-from cltl.eliza.eliza import ElizaImpl
+from cltl.combot.infra.time_util import timestamp_now
+from cltl.emissordata.api import EmissorDataStorage
+from cltl.emissordata.file_storage import EmissorDataFileStorage
+from cltl.leolani.api import Leolani
+from cltl.leolani.leolani import LeolaniImpl
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl_service.asr.service import AsrService
 from cltl_service.backend.backend import BackendService
-from cltl.combot.event.emissor import TextSignalEvent
 from cltl_service.backend.storage import StorageService
 from cltl_service.chatui.service import ChatUiService
-from cltl_service.eliza.service import ElizaService
+from cltl_service.emissordata.client import EmissorDataClient
+from cltl_service.emissordata.service import EmissorDataService
+from cltl_service.leolani.service import LeolaniService
 from cltl_service.vad.service import VadService
+from emissor.representation.scenario import TextSignal, Scenario, Modality
 from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
+
+from cltl.brain.long_term_memory import LongTermMemory
+from cltl.face_recognition.api import FaceDetector
+from cltl.face_recognition.proxy import FaceDetectorProxy
+from cltl.object_recognition.api import ObjectDetector
+from cltl.object_recognition.proxy import ObjectDetectorProxy
+from cltl.reply_generation.lenka_replier import LenkaReplier
+from cltl.triple_extraction.api import Chat
+from cltl.triple_extraction.cfg_analyzer import CFGAnalyzer
+from cltl.vector_id.api import VectorIdentity
+from cltl.vector_id.clusterid import ClusterIdentity
+from cltl_service.brain.service import BrainService
+from cltl_service.face_recognition.service import FaceRecognitionService
+from cltl_service.object_recognition.service import ObjectRecognitionService
+from cltl_service.reply_generation.service import ReplyGenerationService
+from cltl_service.triple_extraction.service import TripleExtractionService
+from cltl_service.vector_id.service import VectorIdService
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
@@ -47,6 +77,22 @@ class InfraContainer(SynchronousEventBusContainer, K8LocalConfigurationContainer
 
     def stop(self):
         pass
+
+
+class RemoteTextOutput(TextOutput):
+    def __init__(self, remote_url: str):
+        self._remote_url = remote_url
+
+    def consume(self, text: str, language=None):
+        tts_headers = {'Content-type': 'text/plain'}
+
+        # animation = gestures.BOW
+        animation = f"{random.choice(gestures.options)}"
+        print("THIS IS WHAT YOU SHOULD VERBALIZE FOR US:", text, animation)
+
+        response = f"\\^startTag({animation}){text}^stopTag({animation})"  #### cannot pass in strings with quotes!!
+
+        requests.post(f"http://{self._remote_url}/text", data=response, headers=tts_headers)
 
 
 class BackendContainer(InfraContainer):
@@ -73,7 +119,12 @@ class BackendContainer(InfraContainer):
     @property
     @singleton
     def text_output(self) -> TextOutput:
-        return ConsoleOutput()
+        config = self.config_manager.get_config("cltl.backend.text_output")
+        remote_url = config.get("remote_url")
+        if remote_url:
+            return RemoteTextOutput(remote_url)
+        else:
+            return ConsoleOutput()
 
     @property
     @singleton
@@ -133,6 +184,35 @@ class BackendContainer(InfraContainer):
         super().stop()
 
 
+class EmissorStorageContainer(InfraContainer):
+    @property
+    @singleton
+    def emissor_storage(self) -> EmissorDataStorage:
+        config = self.config_manager.get_config("cltl.emissor-data")
+        return EmissorDataFileStorage(config.get("path"))
+
+    @property
+    @singleton
+    def emissor_data_service(self) -> EmissorDataService:
+        return EmissorDataService.from_config(self.emissor_storage,
+                                              self.event_bus, self.resource_manager, self.config_manager)
+
+    @property
+    @singleton
+    def emissor_data_client(self) -> EmissorDataClient:
+        return EmissorDataClient("http://0.0.0.0:8000/emissor")
+
+    def start(self):
+        logger.info("Start Emissor Data Storage")
+        super().start()
+        self.emissor_data_service.start()
+
+    def stop(self):
+        logger.info("Stop Emissor Data Storage")
+        self.emissor_data_service.stop()
+        super().stop()
+
+
 class VADContainer(InfraContainer):
     @property
     @singleton
@@ -161,7 +241,7 @@ class VADContainer(InfraContainer):
         super().stop()
 
 
-class ASRContainer(InfraContainer):
+class ASRContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def asr_service(self) -> AsrService:
@@ -186,7 +266,8 @@ class ASRContainer(InfraContainer):
         else:
             raise ValueError("Unsupported implementation " + implementation)
 
-        return AsrService.from_config(asr, self.event_bus, self.resource_manager, self.config_manager)
+        return AsrService.from_config(asr, self.emissor_data_client,
+                                      self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start ASR")
@@ -199,7 +280,172 @@ class ASRContainer(InfraContainer):
         super().stop()
 
 
-class ChatUIContainer(InfraContainer):
+class TripleExtractionContainer(InfraContainer):
+    @property
+    @singleton
+    def triple_extraction_service(self) -> TripleExtractionService:
+        config = self.config_manager.get_config("cltl.triple_extraction")
+        implementation = config.get("implementation")
+
+        if implementation == "CFGAnalyzer":
+            from cltl.triple_extraction.cfg_analyzer import CFGAnalyzer
+            analyzer = CFGAnalyzer()
+        elif implementation == "OIEAnalyzer":
+            from cltl.triple_extraction.oie_analyzer import OIEAnalyzer
+            analyzer = OIEAnalyzer()
+        elif implementation == "spacyAnalyzer":
+            from cltl.triple_extraction.spacy_analyzer import spacyAnalyzer
+            analyzer = spacyAnalyzer()
+        else:
+            raise ValueError("Unsupported implementation " + implementation)
+
+        return TripleExtractionService.from_config(analyzer, self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Triple Extraction")
+        super().start()
+        self.triple_extraction_service.start()
+
+    def stop(self):
+        logger.info("Stop Triple Extraction")
+        self.triple_extraction_service.stop()
+        super().stop()
+
+
+class BrainContainer(InfraContainer):
+    @property
+    @singleton
+    def brain(self) -> LongTermMemory:
+        config = self.config_manager.get_config("cltl.brain")
+        brain_address = config.get("address")
+        brain_log_dir = config.get("log_dir")
+
+        # TODO figure out how to put the brain RDF files in the EMISSOR scenario folder
+        return LongTermMemory(address=brain_address,
+                               log_dir=pathlib.Path(brain_log_dir),
+                               clear_all=False)
+
+    @property
+    @singleton
+    def brain_service(self) -> BrainService:
+        return BrainService.from_config(self.brain, self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Brain")
+        super().start()
+        self.brain_service.start()
+
+    def stop(self):
+        logger.info("Stop Brain")
+        self.brain_service.stop()
+        super().stop()
+
+
+class ReplierContainer(BrainContainer, EmissorStorageContainer, InfraContainer):
+    @property
+    @singleton
+    def reply_service(self) -> ReplyGenerationService:
+        config = self.config_manager.get_config("cltl.reply_generation")
+        implementations = config.get("implementations")
+        repliers = []
+
+        if "LenkaReplier" in implementations:
+            from cltl.reply_generation.lenka_replier import LenkaReplier
+            replier = LenkaReplier()
+            repliers.append(replier)
+        if "RLReplier" in implementations:
+            from cltl.reply_generation.rl_replier import RLReplier
+            # TODO This is OK here, we need to see how this will work in a containerized setting
+            replier = RLReplier(self.brain)
+            repliers.append(replier)
+        if not repliers:
+            raise ValueError("Unsupported implementation " + implementations)
+
+        return ReplyGenerationService.from_config(repliers, self.emissor_data_client, self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Brain")
+        super().start()
+        self.reply_service.start()
+
+    def stop(self):
+        logger.info("Stop Brain")
+        self.reply_service.stop()
+        super().stop()
+
+
+class ObjectRecognitionContainer(InfraContainer):
+    @property
+    @singleton
+    def object_detector(self) -> ObjectDetector:
+        return ObjectDetectorProxy()
+
+    @property
+    @singleton
+    def object_recognition_service(self) -> FaceRecognitionService:
+        return ObjectRecognitionService.from_config(self.object_detector, self.event_bus,
+                                                  self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Object Recognition")
+        super().start()
+        self.object_recognition_service.start()
+
+    def stop(self):
+        logger.info("Stop Object Recognition")
+        self.object_recognition_service.stop()
+        super().stop()
+
+
+class FaceRecognitionContainer(InfraContainer):
+    @property
+    @singleton
+    def face_detector(self) -> FaceDetector:
+        return FaceDetectorProxy()
+
+    @property
+    @singleton
+    def face_recognition_service(self) -> FaceRecognitionService:
+        return FaceRecognitionService.from_config(self.face_detector, self.event_bus,
+                                                  self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Face Recognition")
+        super().start()
+        self.face_recognition_service.start()
+
+    def stop(self):
+        logger.info("Stop Face Recognition")
+        self.face_recognition_service.stop()
+        super().stop()
+
+
+class VectorIdContainer(InfraContainer):
+    @property
+    @singleton
+    def vector_id(self) -> VectorIdentity:
+        config = self.config_manager.get_config("cltl.vector_id.agg")
+
+        return ClusterIdentity.agglomerative(0, config.get_float("distance_threshold"))
+
+    @property
+    @singleton
+    def vector_id_service(self) -> FaceRecognitionService:
+        return VectorIdService.from_config(self.vector_id, self.event_bus,
+                                           self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Vector ID")
+        super().start()
+        self.vector_id_service.start()
+
+    def stop(self):
+        logger.info("Stop Vector ID")
+        self.vector_id_service.stop()
+        super().stop()
+
+
+class ChatUIContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def chats(self) -> Chats:
@@ -208,7 +454,7 @@ class ChatUIContainer(InfraContainer):
     @property
     @singleton
     def chatui_service(self) -> ChatUiService:
-        return ChatUiService.from_config(MemoryChats(), self.event_bus, self.resource_manager, self.config_manager)
+        return ChatUiService.from_config(MemoryChats(), self.emissor_data_client, self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start Chat UI")
@@ -221,61 +467,94 @@ class ChatUIContainer(InfraContainer):
         super().stop()
 
 
-class ElizaContainer(InfraContainer):
+class LeolaniContainer(InfraContainer):
     @property
     @singleton
-    def eliza(self) -> Eliza:
-        return ElizaImpl()
-
-    @property
-    @singleton
-    def eliza_service(self) -> ElizaService:
-        return ElizaService.from_config(self.eliza, self.event_bus, self.resource_manager, self.config_manager)
+    def leolani_service(self) -> LeolaniService:
+        return LeolaniService.from_config(self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
-        logger.info("Start Eliza")
+        logger.info("Start Leolani")
         super().start()
-        self.eliza_service.start()
+        self.leolani_service.start()
 
     def stop(self):
-        logger.info("Stop Eliza")
-        self.eliza_service.stop()
+        logger.info("Stop Leolani")
+        self.leolani_service.stop()
         super().stop()
 
 
-class ApplicationContainer(ElizaContainer, ChatUIContainer, ASRContainer, VADContainer, BackendContainer):
+class ApplicationContainer(ChatUIContainer, LeolaniContainer,
+                           TripleExtractionContainer, ReplierContainer, BrainContainer,
+                           FaceRecognitionContainer, VectorIdContainer, ObjectRecognitionContainer,
+                           ASRContainer, VADContainer,
+                           EmissorStorageContainer, BackendContainer):
     pass
 
 
 def main():
     ApplicationContainer.load_configuration()
-
     logger.info("Initialized Application")
-
     application = ApplicationContainer()
+    add_print_handlers(application.event_bus)
     application.start()
 
+    config = application.config_manager.get_config("cltl.leolani")
+    scenario = create_scenario()
+    application.event_bus.publish(config.get("topic_scenario"), Event.for_payload(ScenarioStarted.create(scenario)))
 
-    def print_event(event: Event):
-        logger.info("APP event (%s): (%s)", event.metadata.topic, event.payload)
-    def print_text_event(event: Event[TextSignalEvent]):
-        logger.info("UTTERANCE event (%s): (%s)", event.metadata.topic, event.payload.signal.text)
-
-    application.event_bus.subscribe("cltl.topic.microphone", print_event)
-    application.event_bus.subscribe("cltl.topic.vad", print_event)
-    application.event_bus.subscribe("cltl.topic.text_in", print_text_event)
-    application.event_bus.subscribe("cltl.topic.text_out", print_text_event)
-
-    web_app = DispatcherMiddleware(Flask("Eliza app"), {
+    web_app = DispatcherMiddleware(Flask("Leolani app"), {
         '/host': application.server,
         '/storage': application.storage_service.app,
+        '/emissor': application.emissor_data_service.app,
         '/chatui': application.chatui_service.app,
     })
 
     run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
 
+    scenario.ruler.end = timestamp_now()
+    application.event_bus.publish("cltl.topic.scenario", Event.for_payload(ScenarioStopped.create(scenario)))
+
+    time.sleep(1)
+
     application.stop()
 
+def create_scenario():
+    AGENT = "Leolani"
+    HUMAN_ID = "Piek"
+
+    signals = {
+        Modality.IMAGE.name.lower(): "./image.json",
+        Modality.TEXT.name.lower(): "./text.json",
+        Modality.AUDIO.name.lower(): "./audio.json"
+    }
+
+    scenario_context = LeolaniContext(AGENT, HUMAN_ID, str(uuid.uuid4()), get_location())
+    return Scenario.new_instance(str(uuid.uuid4()), timestamp_now(), None, scenario_context, signals)
+
+def get_location():
+    try:
+        return requests.get("https://ipinfo.io").json()
+    except:
+        return None
+
+
+def add_print_handlers(event_bus):
+    def print_event(event: Event):
+        logger.info("APP event (%s): (%s)", event.metadata.topic, event.payload)
+
+    def print_text_event(event: Event[TextSignalEvent]):
+        logger.info("UTTERANCE event (%s): (%s)", event.metadata.topic, event.payload.signal.text)
+
+    event_bus.subscribe("cltl.topic.scenario", print_event)
+    event_bus.subscribe("cltl.topic.microphone", print_event)
+    event_bus.subscribe("cltl.topic.image", print_event)
+    event_bus.subscribe("cltl.topic.vad", print_event)
+    event_bus.subscribe("cltl.topic.text_in", print_text_event)
+    event_bus.subscribe("cltl.topic.text_out", print_text_event)
+    event_bus.subscribe("cltl.topic.text_out_replier", print_text_event)
+    event_bus.subscribe("cltl.topic.triple_extraction", print_event)
+    event_bus.subscribe("cltl.topic.brain_response", print_event)
 
 if __name__ == '__main__':
     main()

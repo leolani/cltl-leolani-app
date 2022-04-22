@@ -470,13 +470,8 @@ class ChatUIContainer(EmissorStorageContainer, InfraContainer):
 class LeolaniContainer(InfraContainer):
     @property
     @singleton
-    def leolani(self) -> Leolani:
-        return LeolaniImpl()
-
-    @property
-    @singleton
     def leolani_service(self) -> LeolaniService:
-        return LeolaniService.from_config(self.leolani, self.event_bus, self.resource_manager, self.config_manager)
+        return LeolaniService.from_config(self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start Leolani")
@@ -489,7 +484,7 @@ class LeolaniContainer(InfraContainer):
         super().stop()
 
 
-class ApplicationContainer(ChatUIContainer,
+class ApplicationContainer(ChatUIContainer, LeolaniContainer,
                            TripleExtractionContainer, ReplierContainer, BrainContainer,
                            FaceRecognitionContainer, VectorIdContainer, ObjectRecognitionContainer,
                            ASRContainer, VADContainer,
@@ -499,78 +494,14 @@ class ApplicationContainer(ChatUIContainer,
 
 def main():
     ApplicationContainer.load_configuration()
-
     logger.info("Initialized Application")
-
     application = ApplicationContainer()
-
-    # Initialise a chat
-    AGENT = "Leolani"
-    HUMAN_ID = "Piek"
-    chat = Chat(HUMAN_ID)
-
-    replier = LenkaReplier()
-    analyzer = CFGAnalyzer()
-    # analyzer = spacyAnalyzer()
-
-    # Initialise the brain in GraphDB
-    log_path = pathlib.Path("")
-    my_brain = LongTermMemory(address="http://localhost:7200/repositories/sandbox", log_dir=log_path, clear_all=True)
-
-    signals = {
-        Modality.IMAGE.name.lower(): "./image.json",
-        Modality.TEXT.name.lower(): "./text.json",
-        Modality.AUDIO.name.lower(): "./audio.json"
-    }
-
-    scenario_context = LeolaniContext(AGENT, HUMAN_ID, str(uuid.uuid4()), get_location())
-    scenario = Scenario.new_instance(str(uuid.uuid4()), timestamp_now(), None, scenario_context, signals)
-
-    def print_event(event: Event):
-        logger.info("APP event (%s): (%s)", event.metadata.topic, event.payload)
-
-    def print_text_event(event: Event[TextSignalEvent]):
-        logger.info("UTTERANCE event (%s): (%s)", event.metadata.topic, event.payload.signal.text)
-
-    def print_text_event_speaker(event: Event[TextSignalEvent]):
-        textSignal = TextSignal.for_scenario(None, 0, 0, None, event.payload.signal.text)
-        emissor_api.add_speaker_annotation(textSignal, HUMAN_ID)
-
-        reply_textSignal = talk.understand_remember_reply(scenario, textSignal, chat, replier, analyzer, AGENT, HUMAN_ID,
-                                                          my_brain, None, None, logger)
-
-        emissor_api.add_speaker_annotation(reply_textSignal, AGENT)
-        modifiedPayload = TextSignalEvent.create(reply_textSignal)
-        modifiedEvent = Event.for_payload(modifiedPayload)
-        application.event_bus.publish("cltl.topic.text_out", modifiedEvent)
-        logger.info("UTTERANCE reply (%s): (%s)", modifiedEvent.metadata.topic, modifiedEvent.payload.signal.text)
-
-    def repeat_text_event(event: Event[TextSignalEvent]):
-        textSignal = TextSignal.for_scenario(None, 0, 0, None, "You said:" + event.payload.signal.text)
-        #### Parrot
-        modifiedPayload = TextSignalEvent.create(textSignal)
-        modifiedEvent = Event.for_payload(modifiedPayload)
-        application.event_bus.publish("cltl.topic.text_out", modifiedEvent)
-        emissor_api.add_speaker_annotation(textSignal, HUMAN_ID)
-        logger.info("UTTERANCE event (%s): (%s)", modifiedEvent.metadata.topic, modifiedEvent.payload.signal.text)
-
-    def print_text_event_agent(event: Event[TextSignalEvent]):
-        textSignal = TextSignal.for_scenario(None, 0, 0, None, event.payload.signal.text)
-        emissor_api.add_speaker_annotation(textSignal, AGENT)
-        logger.info("UTTERANCE event (%s): (%s)", event.metadata.topic, event.payload.signal.text)
-
-    application.event_bus.subscribe("cltl.topic.scenario", print_event)
-    application.event_bus.subscribe("cltl.topic.microphone", print_event)
-    application.event_bus.subscribe("cltl.topic.image", print_event)
-    application.event_bus.subscribe("cltl.topic.vad", print_event)
-    application.event_bus.subscribe("cltl.topic.text_in", print_text_event_speaker)
-    application.event_bus.subscribe("cltl.topic.text_in", repeat_text_event)
-    application.event_bus.subscribe("cltl.topic.text_out", print_text_event_agent)
-    application.event_bus.subscribe("cltl.topic.triple_extraction", print_event)
-
+    add_print_handlers(application.event_bus)
     application.start()
 
-    application.event_bus.publish("cltl.topic.scenario", Event.for_payload(ScenarioStarted.create(scenario)))
+    config = application.config_manager.get_config("cltl.leolani")
+    scenario = create_scenario()
+    application.event_bus.publish(config.get("topic_scenario"), Event.for_payload(ScenarioStarted.create(scenario)))
 
     web_app = DispatcherMiddleware(Flask("Leolani app"), {
         '/host': application.server,
@@ -588,6 +519,18 @@ def main():
 
     application.stop()
 
+def create_scenario():
+    AGENT = "Leolani"
+    HUMAN_ID = "Piek"
+
+    signals = {
+        Modality.IMAGE.name.lower(): "./image.json",
+        Modality.TEXT.name.lower(): "./text.json",
+        Modality.AUDIO.name.lower(): "./audio.json"
+    }
+
+    scenario_context = LeolaniContext(AGENT, HUMAN_ID, str(uuid.uuid4()), get_location())
+    return Scenario.new_instance(str(uuid.uuid4()), timestamp_now(), None, scenario_context, signals)
 
 def get_location():
     try:
@@ -595,6 +538,23 @@ def get_location():
     except:
         return None
 
+
+def add_print_handlers(event_bus):
+    def print_event(event: Event):
+        logger.info("APP event (%s): (%s)", event.metadata.topic, event.payload)
+
+    def print_text_event(event: Event[TextSignalEvent]):
+        logger.info("UTTERANCE event (%s): (%s)", event.metadata.topic, event.payload.signal.text)
+
+    event_bus.subscribe("cltl.topic.scenario", print_event)
+    event_bus.subscribe("cltl.topic.microphone", print_event)
+    event_bus.subscribe("cltl.topic.image", print_event)
+    event_bus.subscribe("cltl.topic.vad", print_event)
+    event_bus.subscribe("cltl.topic.text_in", print_text_event)
+    event_bus.subscribe("cltl.topic.text_out", print_text_event)
+    event_bus.subscribe("cltl.topic.text_out_replier", print_text_event)
+    event_bus.subscribe("cltl.topic.triple_extraction", print_event)
+    event_bus.subscribe("cltl.topic.brain_response", print_event)
 
 if __name__ == '__main__':
     main()
