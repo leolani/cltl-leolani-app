@@ -367,6 +367,29 @@ class ReplierContainer(BrainContainer, EmissorStorageContainer, InfraContainer):
         super().stop()
 
 
+class ObjectRecognitionContainer(InfraContainer):
+    @property
+    @singleton
+    def object_detector(self) -> ObjectDetector:
+        return ObjectDetectorProxy()
+
+    @property
+    @singleton
+    def object_recognition_service(self) -> FaceRecognitionService:
+        return ObjectRecognitionService.from_config(self.object_detector, self.event_bus,
+                                                  self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Object Recognition")
+        super().start()
+        self.object_recognition_service.start()
+
+    def stop(self):
+        logger.info("Stop Object Recognition")
+        self.object_recognition_service.stop()
+        super().stop()
+
+
 class DisambiguatorContainer(BrainContainer, EmissorStorageContainer, InfraContainer):
     @property
     @singleton
@@ -402,30 +425,6 @@ class DisambiguatorContainer(BrainContainer, EmissorStorageContainer, InfraConta
         logger.info("Stop Brain")
         self.disambiguation_service.stop()
         super().stop()
-
-
-class ObjectRecognitionContainer(InfraContainer):
-    @property
-    @singleton
-    def object_detector(self) -> ObjectDetector:
-        return ObjectDetectorProxy()
-
-    @property
-    @singleton
-    def object_recognition_service(self) -> FaceRecognitionService:
-        return ObjectRecognitionService.from_config(self.object_detector, self.event_bus,
-                                                  self.resource_manager, self.config_manager)
-
-    def start(self):
-        logger.info("Start Object Recognition")
-        super().start()
-        self.object_recognition_service.start()
-
-    def stop(self):
-        logger.info("Stop Object Recognition")
-        self.object_recognition_service.stop()
-        super().stop()
-
 
 class FaceRecognitionContainer(InfraContainer):
     @property
