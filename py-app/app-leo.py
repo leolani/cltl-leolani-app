@@ -52,6 +52,7 @@ from cltl_service.leolani.service import LeolaniService
 from cltl_service.object_recognition.service import ObjectRecognitionService
 from cltl_service.reply_generation.service import ReplyGenerationService
 from cltl_service.triple_extraction.service import TripleExtractionService
+from cltl_service.entity_linking.service import DisambiguationService
 from cltl_service.vad.service import VadService
 from cltl_service.vector_id.service import VectorIdService
 from emissor.representation.scenario import Scenario, Modality
@@ -363,6 +364,43 @@ class ReplierContainer(BrainContainer, EmissorStorageContainer, InfraContainer):
     def stop(self):
         logger.info("Stop Brain")
         self.reply_service.stop()
+        super().stop()
+
+
+class DisambiguatorContainer(BrainContainer, EmissorStorageContainer, InfraContainer):
+    @property
+    @singleton
+    def disambiguation_service(self) -> DisambiguationService:
+        config = self.config_manager.get_config("cltl.entity_linking")
+        implementations = config.get("implementations")
+        brain_address = config.get("address")
+        brain_log_dir = config.get("log_dir")
+        linkers = []
+
+        if "NamedEntityLinker" in implementations:
+            from cltl.entity_linking import NamedEntityLinker
+            linker = NamedEntityLinker(address=brain_address,
+                                       log_dir=pathlib.Path(brain_log_dir))
+            linkers.append(linker)
+        if "PronounLinker" in implementations:
+            from cltl.reply_generation.rl_replier import PronounLinker
+            # TODO This is OK here, we need to see how this will work in a containerized setting
+            linker = PronounLinker(address=brain_address,
+                                   log_dir=pathlib.Path(brain_log_dir))
+            linkers.append(linker)
+        if not linkers:
+            raise ValueError("Unsupported implementation " + implementations)
+
+        return DisambiguationService.from_config(linkers, self.emissor_data_client, self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Brain")
+        super().start()
+        self.disambiguation_service.start()
+
+    def stop(self):
+        logger.info("Stop Brain")
+        self.disambiguation_service.stop()
         super().stop()
 
 
