@@ -47,12 +47,12 @@ from cltl_service.brain.service import BrainService
 from cltl_service.chatui.service import ChatUiService
 from cltl_service.emissordata.client import EmissorDataClient
 from cltl_service.emissordata.service import EmissorDataService
+from cltl_service.entity_linking.service import DisambiguationService
 from cltl_service.face_recognition.service import FaceRecognitionService
 from cltl_service.leolani.service import LeolaniService
 from cltl_service.object_recognition.service import ObjectRecognitionService
 from cltl_service.reply_generation.service import ReplyGenerationService
 from cltl_service.triple_extraction.service import TripleExtractionService
-from cltl_service.entity_linking.service import DisambiguationService
 from cltl_service.vad.service import VadService
 from cltl_service.vector_id.service import VectorIdService
 from emissor.representation.scenario import Scenario, Modality
@@ -315,8 +315,8 @@ class BrainContainer(InfraContainer):
 
         # TODO figure out how to put the brain RDF files in the EMISSOR scenario folder
         return LongTermMemory(address=brain_address,
-                               log_dir=pathlib.Path(brain_log_dir),
-                               clear_all=False)
+                              log_dir=pathlib.Path(brain_log_dir),
+                              clear_all=False)
 
     @property
     @singleton
@@ -331,62 +331,6 @@ class BrainContainer(InfraContainer):
     def stop(self):
         logger.info("Stop Brain")
         self.brain_service.stop()
-        super().stop()
-
-
-class ReplierContainer(BrainContainer, EmissorStorageContainer, InfraContainer):
-    @property
-    @singleton
-    def reply_service(self) -> ReplyGenerationService:
-        config = self.config_manager.get_config("cltl.reply_generation")
-        implementations = config.get("implementations")
-        repliers = []
-
-        if "LenkaReplier" in implementations:
-            from cltl.reply_generation.lenka_replier import LenkaReplier
-            replier = LenkaReplier()
-            repliers.append(replier)
-        if "RLReplier" in implementations:
-            from cltl.reply_generation.rl_replier import RLReplier
-            # TODO This is OK here, we need to see how this will work in a containerized setting
-            replier = RLReplier(self.brain)
-            repliers.append(replier)
-        if not repliers:
-            raise ValueError("Unsupported implementation " + implementations)
-
-        return ReplyGenerationService.from_config(repliers, self.emissor_data_client, self.event_bus, self.resource_manager, self.config_manager)
-
-    def start(self):
-        logger.info("Start Brain")
-        super().start()
-        self.reply_service.start()
-
-    def stop(self):
-        logger.info("Stop Brain")
-        self.reply_service.stop()
-        super().stop()
-
-
-class ObjectRecognitionContainer(InfraContainer):
-    @property
-    @singleton
-    def object_detector(self) -> ObjectDetector:
-        return ObjectDetectorProxy()
-
-    @property
-    @singleton
-    def object_recognition_service(self) -> FaceRecognitionService:
-        return ObjectRecognitionService.from_config(self.object_detector, self.event_bus,
-                                                  self.resource_manager, self.config_manager)
-
-    def start(self):
-        logger.info("Start Object Recognition")
-        super().start()
-        self.object_recognition_service.start()
-
-    def stop(self):
-        logger.info("Stop Object Recognition")
-        self.object_recognition_service.stop()
         super().stop()
 
 
@@ -414,7 +358,8 @@ class DisambiguatorContainer(BrainContainer, EmissorStorageContainer, InfraConta
         if not linkers:
             raise ValueError("Unsupported implementation " + implementations)
 
-        return DisambiguationService.from_config(linkers, self.emissor_data_client, self.event_bus, self.resource_manager, self.config_manager)
+        return DisambiguationService.from_config(linkers, self.emissor_data_client, self.event_bus,
+                                                 self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start Brain")
@@ -425,6 +370,64 @@ class DisambiguatorContainer(BrainContainer, EmissorStorageContainer, InfraConta
         logger.info("Stop Brain")
         self.disambiguation_service.stop()
         super().stop()
+
+
+class ReplierContainer(BrainContainer, EmissorStorageContainer, InfraContainer):
+    @property
+    @singleton
+    def reply_service(self) -> ReplyGenerationService:
+        config = self.config_manager.get_config("cltl.reply_generation")
+        implementations = config.get("implementations")
+        repliers = []
+
+        if "LenkaReplier" in implementations:
+            from cltl.reply_generation.lenka_replier import LenkaReplier
+            replier = LenkaReplier()
+            repliers.append(replier)
+        if "RLReplier" in implementations:
+            from cltl.reply_generation.rl_replier import RLReplier
+            # TODO This is OK here, we need to see how this will work in a containerized setting
+            replier = RLReplier(self.brain)
+            repliers.append(replier)
+        if not repliers:
+            raise ValueError("Unsupported implementation " + implementations)
+
+        return ReplyGenerationService.from_config(repliers, self.emissor_data_client, self.event_bus,
+                                                  self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Repliers")
+        super().start()
+        self.reply_service.start()
+
+    def stop(self):
+        logger.info("Stop Repliers")
+        self.reply_service.stop()
+        super().stop()
+
+
+class ObjectRecognitionContainer(InfraContainer):
+    @property
+    @singleton
+    def object_detector(self) -> ObjectDetector:
+        return ObjectDetectorProxy()
+
+    @property
+    @singleton
+    def object_recognition_service(self) -> FaceRecognitionService:
+        return ObjectRecognitionService.from_config(self.object_detector, self.event_bus,
+                                                    self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Object Recognition")
+        super().start()
+        self.object_recognition_service.start()
+
+    def stop(self):
+        logger.info("Stop Object Recognition")
+        self.object_recognition_service.stop()
+        super().stop()
+
 
 class FaceRecognitionContainer(InfraContainer):
     @property
@@ -483,7 +486,8 @@ class ChatUIContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def chatui_service(self) -> ChatUiService:
-        return ChatUiService.from_config(MemoryChats(), self.emissor_data_client, self.event_bus, self.resource_manager, self.config_manager)
+        return ChatUiService.from_config(MemoryChats(), self.emissor_data_client, self.event_bus, self.resource_manager,
+                                         self.config_manager)
 
     def start(self):
         logger.info("Start Chat UI")
@@ -548,6 +552,7 @@ def main():
 
     application.stop()
 
+
 def create_scenario():
     AGENT = "Leolani"
     HUMAN_ID = "Piek"
@@ -560,6 +565,7 @@ def create_scenario():
 
     scenario_context = LeolaniContext(AGENT, HUMAN_ID, str(uuid.uuid4()), get_location())
     return Scenario.new_instance(str(uuid.uuid4()), timestamp_now(), None, scenario_context, signals)
+
 
 def get_location():
     try:
@@ -584,6 +590,7 @@ def add_print_handlers(event_bus):
     event_bus.subscribe("cltl.topic.text_out_replier", print_text_event)
     event_bus.subscribe("cltl.topic.triple_extraction", print_event)
     event_bus.subscribe("cltl.topic.brain_response", print_event)
+
 
 if __name__ == '__main__':
     main()
