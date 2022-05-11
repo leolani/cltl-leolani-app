@@ -5,6 +5,7 @@ cltl.face-recognition[impl,service]
 cltl.object-recognition[impl,service]
 cltl.brain[service]
 cltl.triple_extraction[service]
+cltl.entity_linking
 cltl.reply_generation[impl, service]
 cltl.emissor-data[impl,service,client]
 cltl.leolani
