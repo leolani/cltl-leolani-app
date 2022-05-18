@@ -29,14 +29,13 @@ include util/make/makefile.git.mk
 include makefile.helm.mk
 
 
-.PHONY: spacy
-spacy:
+spacy.lock:
 	source venv/bin/activate; python -m spacy download en
 	touch spacy.lock
 
 
 .PHONY: build
-build: venv spacy
+build: venv spacy.lock
 
 
 .PHONY: clean
