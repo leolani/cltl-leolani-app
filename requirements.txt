@@ -3,6 +3,7 @@ cltl.asr[impl,service]
 cltl.vad[impl,service]
 cltl.face-recognition[impl,service]
 cltl.object-recognition[impl,service]
+cltl.mention-detection[impl, service]
 cltl.brain[service]
 cltl.triple_extraction[service]
 cltl.entity_linking

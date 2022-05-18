@@ -35,8 +35,13 @@ from cltl.emissordata.api import EmissorDataStorage
 from cltl.emissordata.file_storage import EmissorDataFileStorage
 from cltl.face_recognition.api import FaceDetector
 from cltl.face_recognition.proxy import FaceDetectorProxy
+
+from cltl.mention_extraction.api import MentionExtractor
+from cltl.nlp.api import NLP
 from cltl.object_recognition.api import ObjectDetector
 from cltl.object_recognition.proxy import ObjectDetectorProxy
+from cltl.nlp.spacy_nlp import SpacyNLP
+from cltl.mention_extraction.default_extractor import DefaultMentionExtractor
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl.vector_id.api import VectorIdentity
 from cltl.vector_id.clusterid import ClusterIdentity
@@ -53,6 +58,8 @@ from cltl_service.leolani.service import LeolaniService
 from cltl_service.object_recognition.service import ObjectRecognitionService
 from cltl_service.reply_generation.service import ReplyGenerationService
 from cltl_service.triple_extraction.service import TripleExtractionService
+from cltl_service.nlp.service import NLPService
+from cltl_service.mention_extraction.service import MentionExtractionService
 from cltl_service.vad.service import VadService
 from cltl_service.vector_id.service import VectorIdService
 from emissor.representation.scenario import Scenario, Modality
@@ -477,6 +484,53 @@ class VectorIdContainer(InfraContainer):
         super().stop()
 
 
+class NLPContainer(InfraContainer):
+    @property
+    @singleton
+    def nlp(self) -> NLP:
+        config = self.config_manager.get_config("cltl.nlp.spacy")
+
+        return SpacyNLP(config.get('model'))
+
+    @property
+    @singleton
+    def nlp_service(self) -> NLPService:
+        return NLPService.from_config(self.nlp, self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start NLP service")
+        super().start()
+        self.nlp_service.start()
+
+    def stop(self):
+        logger.info("Stop NLP service")
+        self.nlp_service.stop()
+        super().stop()
+
+
+class MentionExtractionContainer(InfraContainer):
+    @property
+    @singleton
+    def mention_extractor(self) -> MentionExtractor:
+        return DefaultMentionExtractor()
+
+    @property
+    @singleton
+    def mention_extraction_service(self) -> MentionExtractionService:
+        return MentionExtractionService.from_config(self.mention_extractor,
+                                                    self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Mention Extraction Service")
+        super().start()
+        self.mention_extraction_service.start()
+
+    def stop(self):
+        logger.info("Stop Mention Extraction Service")
+        self.mention_extraction_service.stop()
+        super().stop()
+
+
 class ChatUIContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
@@ -517,8 +571,9 @@ class LeolaniContainer(InfraContainer):
         super().stop()
 
 
-class ApplicationContainer(ChatUIContainer, LeolaniContainer,
+class ApplicationContainer(ChatUIContainer,
                            TripleExtractionContainer, ReplierContainer, BrainContainer,
+                           NLPContainer, MentionExtractionContainer,
                            FaceRecognitionContainer, VectorIdContainer, ObjectRecognitionContainer,
                            ASRContainer, VADContainer,
                            EmissorStorageContainer, BackendContainer):

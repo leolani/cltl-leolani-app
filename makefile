@@ -14,6 +14,7 @@ project_dependencies ?= $(addprefix $(project_root)/, \
 		cltl-knowledgeextraction \
 		cltl-knowledgelinking \
 		cltl-languagegeneration \
+		cltl-mention-detection \
 		cltl-eliza \
 		cltl-leolani \
 		cltl-chat-ui)
@@ -27,9 +28,18 @@ include util/make/makefile.py.base.mk
 include util/make/makefile.git.mk
 include makefile.helm.mk
 
+
+.PHONY: spacy
+spacy:
+	source venv/bin/activate; python -m spacy download en
+	touch spacy.lock
+
+
 .PHONY: build
-build: venv
+build: venv spacy
+
 
 .PHONY: clean
 clean:
 	rm -rf venv dist
+	rm -f spacy.lock
