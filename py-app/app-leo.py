@@ -1,11 +1,15 @@
+import contextlib
+import json
 import logging.config
+import os
 import pathlib
 import random
-import time
 import uuid
+from datetime import datetime
 
 import cltl.leolani.gestures as gestures
 import requests
+import time
 from cltl.backend.api.backend import Backend
 from cltl.backend.api.camera import CameraResolution, Camera
 from cltl.backend.api.microphone import Microphone
@@ -35,13 +39,8 @@ from cltl.emissordata.api import EmissorDataStorage
 from cltl.emissordata.file_storage import EmissorDataFileStorage
 from cltl.face_recognition.api import FaceDetector
 from cltl.face_recognition.proxy import FaceDetectorProxy
-
-from cltl.mention_extraction.api import MentionExtractor
-from cltl.nlp.api import NLP
 from cltl.object_recognition.api import ObjectDetector
 from cltl.object_recognition.proxy import ObjectDetectorProxy
-from cltl.nlp.spacy_nlp import SpacyNLP
-from cltl.mention_extraction.default_extractor import DefaultMentionExtractor
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl.vector_id.api import VectorIdentity
 from cltl.vector_id.clusterid import ClusterIdentity
@@ -52,20 +51,26 @@ from cltl_service.brain.service import BrainService
 from cltl_service.chatui.service import ChatUiService
 from cltl_service.emissordata.client import EmissorDataClient
 from cltl_service.emissordata.service import EmissorDataService
-from cltl_service.entity_linking.service import DisambiguationService
 from cltl_service.face_recognition.service import FaceRecognitionService
 from cltl_service.leolani.service import LeolaniService
 from cltl_service.object_recognition.service import ObjectRecognitionService
 from cltl_service.reply_generation.service import ReplyGenerationService
 from cltl_service.triple_extraction.service import TripleExtractionService
-from cltl_service.nlp.service import NLPService
-from cltl_service.mention_extraction.service import MentionExtractionService
 from cltl_service.vad.service import VadService
 from cltl_service.vector_id.service import VectorIdService
 from emissor.representation.scenario import Scenario, Modality
+from emissor.representation.util import serializer as emissor_serializer
 from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
+
+from cltl.mention_extraction.api import MentionExtractor
+from cltl.mention_extraction.default_extractor import DefaultMentionExtractor
+from cltl.nlp.api import NLP
+from cltl.nlp.spacy_nlp import SpacyNLP
+from cltl_service.entity_linking.service import DisambiguationService
+from cltl_service.mention_extraction.service import MentionExtractionService
+from cltl_service.nlp.service import NLPService
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
@@ -588,24 +593,24 @@ def main():
     application.start()
 
     config = application.config_manager.get_config("cltl.leolani")
-    scenario = create_scenario()
-    application.event_bus.publish(config.get("topic_scenario"), Event.for_payload(ScenarioStarted.create(scenario)))
+    with event_log(application.event_bus, config):
+        scenario = create_scenario()
+        application.event_bus.publish(config.get("topic_scenario"), Event.for_payload(ScenarioStarted.create(scenario)))
 
-    web_app = DispatcherMiddleware(Flask("Leolani app"), {
-        '/host': application.server,
-        '/storage': application.storage_service.app,
-        '/emissor': application.emissor_data_service.app,
-        '/chatui': application.chatui_service.app,
-    })
+        web_app = DispatcherMiddleware(Flask("Leolani app"), {
+            '/host': application.server,
+            '/storage': application.storage_service.app,
+            '/emissor': application.emissor_data_service.app,
+            '/chatui': application.chatui_service.app,
+        })
 
-    run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
+        run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
 
-    scenario.ruler.end = timestamp_now()
-    application.event_bus.publish("cltl.topic.scenario", Event.for_payload(ScenarioStopped.create(scenario)))
+        scenario.ruler.end = timestamp_now()
+        application.event_bus.publish("cltl.topic.scenario", Event.for_payload(ScenarioStopped.create(scenario)))
+        time.sleep(1)
 
-    time.sleep(1)
-
-    application.stop()
+        application.stop()
 
 
 def create_scenario():
@@ -645,6 +650,32 @@ def add_print_handlers(event_bus):
     event_bus.subscribe("cltl.topic.text_out_replier", print_text_event)
     event_bus.subscribe("cltl.topic.triple_extraction", print_event)
     event_bus.subscribe("cltl.topic.brain_response", print_event)
+
+
+def get_event_log_path(config):
+    log_dir = config.get('event_log')
+    date_now = datetime.now()
+
+    os.makedirs(log_dir, exist_ok=True)
+
+    return f"{log_dir}/{date_now :%y_%m_%d-%H_%M_%S}.json"
+
+
+@contextlib.contextmanager
+def event_log(event_bus, config):
+    with open(get_event_log_path(config), "w") as event_log:
+        event_log.writelines(['['])
+
+        topics = event_bus.topics
+        for topic in topics:
+            def log_event(event):
+                event_log.write(json.dumps(event, default=emissor_serializer, indent=2) + ',\n')
+            event_bus.subscribe(topic, log_event)
+        logger.info("Subscribed %s to %s", event_log.name, topics)
+
+        yield None
+
+        event_log.writelines([']'])
 
 
 if __name__ == '__main__':
