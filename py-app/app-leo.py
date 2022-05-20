@@ -346,7 +346,7 @@ class BrainContainer(InfraContainer):
         super().stop()
 
 
-class DisambiguatorContainer(BrainContainer, EmissorStorageContainer, InfraContainer):
+class DisambiguationContainer(BrainContainer, InfraContainer):
     @property
     @singleton
     def disambiguation_service(self) -> DisambiguationService:
@@ -357,7 +357,7 @@ class DisambiguatorContainer(BrainContainer, EmissorStorageContainer, InfraConta
         linkers = []
 
         if "NamedEntityLinker" in implementations:
-            from cltl.entity_linking import NamedEntityLinker
+            from cltl.entity_linking.linkers import NamedEntityLinker
             linker = NamedEntityLinker(address=brain_address,
                                        log_dir=pathlib.Path(brain_log_dir))
             linkers.append(linker)
@@ -370,16 +370,15 @@ class DisambiguatorContainer(BrainContainer, EmissorStorageContainer, InfraConta
         if not linkers:
             raise ValueError("Unsupported implementation " + implementations)
 
-        return DisambiguationService.from_config(linkers, self.emissor_data_client, self.event_bus,
-                                                 self.resource_manager, self.config_manager)
+        return DisambiguationService.from_config(linkers, self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
-        logger.info("Start Brain")
+        logger.info("Start Disambigution Service")
         super().start()
         self.disambiguation_service.start()
 
     def stop(self):
-        logger.info("Stop Brain")
+        logger.info("Stop Disambigution Service")
         self.disambiguation_service.stop()
         super().stop()
 
@@ -577,7 +576,7 @@ class LeolaniContainer(InfraContainer):
 
 
 class ApplicationContainer(ChatUIContainer,
-                           TripleExtractionContainer, ReplierContainer, BrainContainer,
+                           TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
                            NLPContainer, MentionExtractionContainer,
                            FaceRecognitionContainer, VectorIdContainer, ObjectRecognitionContainer,
                            ASRContainer, VADContainer,
