@@ -593,8 +593,10 @@ def main():
 
     config = application.config_manager.get_config("cltl.leolani")
     with event_log(application.event_bus, config):
-        scenario = create_scenario()
+        scenario, capsule = create_scenario()
         application.event_bus.publish(config.get("topic_scenario"), Event.for_payload(ScenarioStarted.create(scenario)))
+        config = application.config_manager.get_config("cltl.brain")
+        application.event_bus.publish(config.get("topic_input"), Event.for_payload([capsule]))
 
         web_app = DispatcherMiddleware(Flask("Leolani app"), {
             '/host': application.server,
@@ -622,8 +624,24 @@ def create_scenario():
         Modality.AUDIO.name.lower(): "./audio.json"
     }
 
-    scenario_context = LeolaniContext(AGENT, HUMAN_ID, str(uuid.uuid4()), get_location())
-    return Scenario.new_instance(str(uuid.uuid4()), timestamp_now(), None, scenario_context, signals)
+    scenario_start = datetime.today().strftime('%Y-%m-%d')
+    location = get_location()
+
+    scenario_context = LeolaniContext(AGENT, HUMAN_ID, str(uuid.uuid4()), location)
+    scenario = Scenario.new_instance(str(uuid.uuid4()), scenario_start, None, scenario_context, signals)
+
+    capsule = {
+        "type": "context",
+        "context_id": scenario.id,
+        "date": scenario_start,
+        "place": None,
+        "place_id": None,
+        "country": location["country"],
+        "region": location["region"],
+        "city": location["city"]
+    }
+
+    return scenario, capsule
 
 
 def get_location():
@@ -668,7 +686,10 @@ def event_log(event_bus, config):
         topics = event_bus.topics
         for topic in topics:
             def log_event(event):
-                event_log.write(json.dumps(event, default=emissor_serializer, indent=2) + ',\n')
+                try:
+                    event_log.write(json.dumps(event, default=emissor_serializer, indent=2) + ',\n')
+                except:
+                    logger.exception("Failed to write event: %s", event)
             event_bus.subscribe(topic, log_event)
         logger.info("Subscribed %s to %s", event_log.name, topics)
 
