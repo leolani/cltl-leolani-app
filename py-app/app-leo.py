@@ -5,7 +5,7 @@ import os
 import pathlib
 import random
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 
 import cltl.leolani.gestures as gestures
 import requests
@@ -31,7 +31,7 @@ from cltl.chatui.memory import MemoryChats
 from cltl.combot.event.emissor import ScenarioStarted, ScenarioStopped, LeolaniContext, TextSignalEvent
 from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
 from cltl.combot.infra.di_container import singleton
-from cltl.combot.infra.event import Event
+from cltl.combot.infra.event import Event, EventMetadata
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
 from cltl.combot.infra.time_util import timestamp_now
@@ -680,22 +680,33 @@ def get_event_log_path(config):
 
 @contextlib.contextmanager
 def event_log(event_bus, config):
+    def log_event(event):
+        try:
+            event_log.write(json.dumps(event, default=serializer, indent=2) + ',\n')
+        except:
+            logger.exception("Failed to write event: %s", event)
+
     with open(get_event_log_path(config), "w") as event_log:
         event_log.writelines(['['])
 
         topics = event_bus.topics
         for topic in topics:
-            def log_event(event):
-                try:
-                    event_log.write(json.dumps(event, default=emissor_serializer, indent=2) + ',\n')
-                except:
-                    logger.exception("Failed to write event: %s", event)
             event_bus.subscribe(topic, log_event)
         logger.info("Subscribed %s to %s", event_log.name, topics)
 
         yield None
 
         event_log.writelines([']'])
+
+
+def serializer(obj):
+    try:
+        return emissor_serializer(obj)
+    except Exception:
+        try:
+            return vars(obj)
+        except Exception:
+            return str(obj)
 
 
 if __name__ == '__main__':
