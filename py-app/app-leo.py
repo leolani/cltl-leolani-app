@@ -65,7 +65,8 @@ from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
 
 from cltl.mention_extraction.api import MentionExtractor
-from cltl.mention_extraction.default_extractor import DefaultMentionExtractor
+from cltl.mention_extraction.default_extractor import DefaultMentionExtractor, TextMentionDetector, \
+    NewFaceMentionDetector, ObjectMentionDetector
 from cltl.nlp.api import NLP
 from cltl.nlp.spacy_nlp import SpacyNLP
 from cltl_service.entity_linking.service import DisambiguationService
@@ -516,7 +517,11 @@ class MentionExtractionContainer(InfraContainer):
     @property
     @singleton
     def mention_extractor(self) -> MentionExtractor:
-        return DefaultMentionExtractor()
+        text_detector = TextMentionDetector()
+        face_detector = NewFaceMentionDetector()
+        object_detector = ObjectMentionDetector()
+
+        return DefaultMentionExtractor(text_detector, face_detector, object_detector)
 
     @property
     @singleton
