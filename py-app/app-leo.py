@@ -4,12 +4,12 @@ import logging.config
 import os
 import pathlib
 import random
+import time
 import uuid
-from datetime import datetime, date
+from datetime import datetime
 
 import cltl.leolani.gestures as gestures
 import requests
-import time
 from cltl.backend.api.backend import Backend
 from cltl.backend.api.camera import CameraResolution, Camera
 from cltl.backend.api.microphone import Microphone
@@ -31,7 +31,7 @@ from cltl.chatui.memory import MemoryChats
 from cltl.combot.event.emissor import ScenarioStarted, ScenarioStopped, LeolaniContext, TextSignalEvent
 from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
 from cltl.combot.infra.di_container import singleton
-from cltl.combot.infra.event import Event, EventMetadata
+from cltl.combot.infra.event import Event
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
 from cltl.combot.infra.time_util import timestamp_now
@@ -653,7 +653,7 @@ def get_location():
     try:
         return requests.get("https://ipinfo.io").json()
     except:
-        return None
+        return {"country": "", "region": "", "city": ""}
 
 
 def add_print_handlers(event_bus):
