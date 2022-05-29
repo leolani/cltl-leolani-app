@@ -564,19 +564,19 @@ class ChatUIContainer(EmissorStorageContainer, InfraContainer):
 
 
 class LeolaniContainer(InfraContainer):
-    @property
-    @singleton
-    def leolani_service(self) -> LeolaniService:
-        return LeolaniService.from_config(self.event_bus, self.resource_manager, self.config_manager)
+    # @property
+    # @singleton
+    # def context_service(self) -> ContextService:
+    #     return ContextService.from_config(self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start Leolani")
         super().start()
-        self.leolani_service.start()
+        # self.context_service.start()
 
     def stop(self):
         logger.info("Stop Leolani")
-        self.leolani_service.stop()
+        # self.context_service.stop()
         super().stop()
 
 
@@ -586,37 +586,8 @@ class ApplicationContainer(ChatUIContainer,
                            FaceRecognitionContainer, VectorIdContainer, ObjectRecognitionContainer,
                            ASRContainer, VADContainer,
                            EmissorStorageContainer, BackendContainer):
-    pass
-
-
-def main():
-    ApplicationContainer.load_configuration()
-    logger.info("Initialized Application")
-    application = ApplicationContainer()
-    add_print_handlers(application.event_bus)
-    application.start()
-
-    config = application.config_manager.get_config("cltl.leolani")
-    with event_log(application.event_bus, config):
-        scenario, capsule = create_scenario()
-        application.event_bus.publish(config.get("topic_scenario"), Event.for_payload(ScenarioStarted.create(scenario)))
-        config = application.config_manager.get_config("cltl.brain")
-        application.event_bus.publish(config.get("topic_input"), Event.for_payload([capsule]))
-
-        web_app = DispatcherMiddleware(Flask("Leolani app"), {
-            '/host': application.server,
-            '/storage': application.storage_service.app,
-            '/emissor': application.emissor_data_service.app,
-            '/chatui': application.chatui_service.app,
-        })
-
-        run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
-
-        scenario.ruler.end = timestamp_now()
-        application.event_bus.publish("cltl.topic.scenario", Event.for_payload(ScenarioStopped.create(scenario)))
-        time.sleep(1)
-
-        application.stop()
+    def __init__(self):
+        self.scenario = None
 
 
 def create_scenario():
@@ -654,6 +625,26 @@ def get_location():
         return requests.get("https://ipinfo.io").json()
     except:
         return {"country": "", "region": "", "city": ""}
+
+
+def add_scenario_handler(application):
+    scenario_topic = application.config_manager.get_config("cltl.leolani").get("topic_scenario")
+    scenarios = []
+
+    def set_scenario(event):
+        scenarios.clear()
+        scenarios.append(event.payload.scenario)
+        logger.info("Set application scenario to %s", event.payload.scenario)
+
+    def terminate():
+        if application.scenario:
+            application.event_bus.publish(scenario_topic,
+                                          Event.for_payload(ScenarioStopped.create(scenarios[-1])))
+            logger.info("Sent termination event for scenario %s", scenarios[-1])
+
+    application.event_bus.subscribe(scenario_topic, set_scenario)
+
+    return terminate
 
 
 def add_print_handlers(event_bus):
@@ -712,6 +703,38 @@ def serializer(obj):
             return vars(obj)
         except Exception:
             return str(obj)
+
+
+def main():
+    ApplicationContainer.load_configuration()
+    logger.info("Initialized Application")
+    application = ApplicationContainer()
+    add_print_handlers(application.event_bus)
+    terminate_scenario = add_scenario_handler(application)
+    application.start()
+
+    config = application.config_manager.get_config("cltl.leolani")
+    with event_log(application.event_bus, config):
+        scenario, capsule = create_scenario()
+        application.event_bus.publish(config.get("topic_scenario"), Event.for_payload(ScenarioStarted.create(scenario)))
+        config = application.config_manager.get_config("cltl.brain")
+        application.event_bus.publish(config.get("topic_input"), Event.for_payload([capsule]))
+
+        web_app = DispatcherMiddleware(Flask("Leolani app"), {
+            '/host': application.server,
+            '/storage': application.storage_service.app,
+            '/emissor': application.emissor_data_service.app,
+            '/chatui': application.chatui_service.app,
+        })
+
+        run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
+
+        scenario.ruler.end = timestamp_now()
+        terminate_scenario()
+        # application.event_bus.publish("cltl.topic.scenario", Event.for_payload(ScenarioStopped.create(scenario)))
+        time.sleep(1)
+
+        application.stop()
 
 
 if __name__ == '__main__':
