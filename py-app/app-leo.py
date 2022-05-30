@@ -27,6 +27,7 @@ from cltl.backend.spi.text import TextOutput
 from cltl.brain.long_term_memory import LongTermMemory
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
+from cltl.combot.event.bdi import DesireEvent, IntentionEvent
 from cltl.combot.event.emissor import ScenarioStopped, TextSignalEvent
 from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
 from cltl.combot.infra.di_container import singleton
@@ -48,6 +49,7 @@ from cltl_service.backend.storage import StorageService
 from cltl_service.brain.service import BrainService
 from cltl_service.chatui.service import ChatUiService
 from cltl_service.context.service import ContextService
+from cltl_service.bdi.service import BDIService
 from cltl_service.emissordata.client import EmissorDataClient
 from cltl_service.emissordata.service import EmissorDataService
 from cltl_service.face_recognition.service import FaceRecognitionService
@@ -566,13 +568,20 @@ class LeolaniContainer(InfraContainer):
     def context_service(self) -> ContextService:
         return ContextService.from_config(self.event_bus, self.resource_manager, self.config_manager)
 
+    @property
+    @singleton
+    def bdi_service(self) -> BDIService:
+        return BDIService.from_config(self.event_bus, self.resource_manager, self.config_manager)
+
     def start(self):
         logger.info("Start Leolani")
         super().start()
+        self.bdi_service.start()
         self.context_service.start()
 
     def stop(self):
         logger.info("Stop Leolani")
+        self.bdi_service.stop()
         self.context_service.stop()
         super().stop()
 
@@ -584,26 +593,6 @@ class ApplicationContainer(ChatUIContainer, LeolaniContainer,
                            ASRContainer, VADContainer,
                            EmissorStorageContainer, BackendContainer):
     pass
-
-
-def add_scenario_handler(application):
-    scenario_topic = application.config_manager.get_config("cltl.leolani").get("topic_scenario")
-    scenarios = []
-
-    def set_scenario(event):
-        scenarios.clear()
-        scenarios.append(event.payload.scenario)
-        logger.info("Set application scenario to %s", event.payload.scenario)
-
-    def terminate():
-        if scenarios:
-            application.event_bus.publish(scenario_topic,
-                                          Event.for_payload(ScenarioStopped.create(scenarios[-1])))
-            logger.info("Sent termination event for scenario %s", scenarios[-1])
-
-    application.event_bus.subscribe(scenario_topic, set_scenario)
-
-    return terminate
 
 
 def add_print_handlers(event_bus):
@@ -669,8 +658,10 @@ def main():
     logger.info("Initialized Application")
     application = ApplicationContainer()
     add_print_handlers(application.event_bus)
-    terminate_scenario = add_scenario_handler(application)
     application.start()
+
+    intention_topic = application.config_manager.get_config("cltl.bdi").get("topic_intention")
+    application.event_bus.publish(intention_topic, Event.for_payload(IntentionEvent("init")))
 
     config = application.config_manager.get_config("cltl.leolani")
     with event_log(application.event_bus, config):
@@ -685,7 +676,8 @@ def main():
 
         run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
 
-        terminate_scenario()
+        intention_topic = application.config_manager.get_config("cltl.bdi").get("topic_intention")
+        application.event_bus.publish(intention_topic, Event.for_payload(IntentionEvent("terminate")))
         time.sleep(1)
 
         application.stop()
