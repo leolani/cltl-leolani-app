@@ -5,7 +5,6 @@ import os
 import pathlib
 import random
 import time
-import uuid
 from datetime import datetime
 
 import cltl.leolani.gestures as gestures
@@ -28,13 +27,12 @@ from cltl.backend.spi.text import TextOutput
 from cltl.brain.long_term_memory import LongTermMemory
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
-from cltl.combot.event.emissor import ScenarioStarted, ScenarioStopped, LeolaniContext, TextSignalEvent
+from cltl.combot.event.emissor import ScenarioStopped, TextSignalEvent
 from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
 from cltl.combot.infra.di_container import singleton
 from cltl.combot.infra.event import Event
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
-from cltl.combot.infra.time_util import timestamp_now
 from cltl.emissordata.api import EmissorDataStorage
 from cltl.emissordata.file_storage import EmissorDataFileStorage
 from cltl.face_recognition.api import FaceDetector
@@ -49,16 +47,15 @@ from cltl_service.backend.backend import BackendService
 from cltl_service.backend.storage import StorageService
 from cltl_service.brain.service import BrainService
 from cltl_service.chatui.service import ChatUiService
+from cltl_service.context.service import ContextService
 from cltl_service.emissordata.client import EmissorDataClient
 from cltl_service.emissordata.service import EmissorDataService
 from cltl_service.face_recognition.service import FaceRecognitionService
-from cltl_service.leolani.service import LeolaniService
 from cltl_service.object_recognition.service import ObjectRecognitionService
 from cltl_service.reply_generation.service import ReplyGenerationService
 from cltl_service.triple_extraction.service import TripleExtractionService
 from cltl_service.vad.service import VadService
 from cltl_service.vector_id.service import VectorIdService
-from emissor.representation.scenario import Scenario, Modality
 from emissor.representation.util import serializer as emissor_serializer
 from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
@@ -564,67 +561,29 @@ class ChatUIContainer(EmissorStorageContainer, InfraContainer):
 
 
 class LeolaniContainer(InfraContainer):
-    # @property
-    # @singleton
-    # def context_service(self) -> ContextService:
-    #     return ContextService.from_config(self.event_bus, self.resource_manager, self.config_manager)
+    @property
+    @singleton
+    def context_service(self) -> ContextService:
+        return ContextService.from_config(self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start Leolani")
         super().start()
-        # self.context_service.start()
+        self.context_service.start()
 
     def stop(self):
         logger.info("Stop Leolani")
-        # self.context_service.stop()
+        self.context_service.stop()
         super().stop()
 
 
-class ApplicationContainer(ChatUIContainer,
+class ApplicationContainer(ChatUIContainer, LeolaniContainer,
                            TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
                            NLPContainer, MentionExtractionContainer,
                            FaceRecognitionContainer, VectorIdContainer, ObjectRecognitionContainer,
                            ASRContainer, VADContainer,
                            EmissorStorageContainer, BackendContainer):
-    def __init__(self):
-        self.scenario = None
-
-
-def create_scenario():
-    AGENT = "Leolani"
-    HUMAN_ID = "Piek"
-
-    signals = {
-        Modality.IMAGE.name.lower(): "./image.json",
-        Modality.TEXT.name.lower(): "./text.json",
-        Modality.AUDIO.name.lower(): "./audio.json"
-    }
-
-    scenario_start = datetime.today().strftime('%Y-%m-%d')
-    location = get_location()
-
-    scenario_context = LeolaniContext(AGENT, HUMAN_ID, str(uuid.uuid4()), location)
-    scenario = Scenario.new_instance(str(uuid.uuid4()), scenario_start, None, scenario_context, signals)
-
-    capsule = {
-        "type": "context",
-        "context_id": scenario.id,
-        "date": scenario_start,
-        "place": None,
-        "place_id": None,
-        "country": location["country"],
-        "region": location["region"],
-        "city": location["city"]
-    }
-
-    return scenario, capsule
-
-
-def get_location():
-    try:
-        return requests.get("https://ipinfo.io").json()
-    except:
-        return {"country": "", "region": "", "city": ""}
+    pass
 
 
 def add_scenario_handler(application):
@@ -637,7 +596,7 @@ def add_scenario_handler(application):
         logger.info("Set application scenario to %s", event.payload.scenario)
 
     def terminate():
-        if application.scenario:
+        if scenarios:
             application.event_bus.publish(scenario_topic,
                                           Event.for_payload(ScenarioStopped.create(scenarios[-1])))
             logger.info("Sent termination event for scenario %s", scenarios[-1])
@@ -715,10 +674,7 @@ def main():
 
     config = application.config_manager.get_config("cltl.leolani")
     with event_log(application.event_bus, config):
-        scenario, capsule = create_scenario()
-        application.event_bus.publish(config.get("topic_scenario"), Event.for_payload(ScenarioStarted.create(scenario)))
         config = application.config_manager.get_config("cltl.brain")
-        application.event_bus.publish(config.get("topic_input"), Event.for_payload([capsule]))
 
         web_app = DispatcherMiddleware(Flask("Leolani app"), {
             '/host': application.server,
@@ -729,9 +685,7 @@ def main():
 
         run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
 
-        scenario.ruler.end = timestamp_now()
         terminate_scenario()
-        # application.event_bus.publish("cltl.topic.scenario", Event.for_payload(ScenarioStopped.create(scenario)))
         time.sleep(1)
 
         application.stop()
