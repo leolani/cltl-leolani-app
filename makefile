@@ -15,6 +15,7 @@ project_dependencies ?= $(addprefix $(project_root)/, \
 		cltl-knowledgelinking \
 		cltl-languagegeneration \
 		cltl-mention-detection \
+		cltl-g2ky \
 		cltl-eliza \
 		cltl-leolani \
 		cltl-chat-ui)

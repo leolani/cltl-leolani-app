@@ -9,6 +9,7 @@ cltl.triple_extraction[service]
 cltl.entity_linking
 cltl.reply_generation[impl, service]
 cltl.emissor-data[impl,service,client]
+cltl.g2ky[impl,service]
 cltl.leolani
 cltl.chat-ui[service]
 cltl.eliza

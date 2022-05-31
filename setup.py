@@ -25,6 +25,7 @@ setup(
         "cltl.asr[impl,service]",
         "cltl.vad[impl,service]",
         "cltl.chat-ui",
+        "cltl.g2ky[impl,service]",
         "cltl.leolani",
         "cltl.emissor-data[impl,service,client]",
         "cltl.brain[service]",
