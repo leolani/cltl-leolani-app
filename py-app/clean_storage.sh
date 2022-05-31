@@ -1,16 +1,20 @@
 #!/bin/bash
 
 # ASR implementation writes this files for some unknown reason
-rm *.wav
+rm -f *.wav
 
-rm storage/audio/*.wav
-rm storage/audio/*.json
+rm -f storage/event_log/*.json
 
-rm storage/video/*.png
-rm storage/video/*.json
+rm -f storage/audio/*.wav
+rm -f storage/audio/*.json
 
-rm -r storage/rdf/**/*
+rm -f storage/video/*.png
+rm -f storage/video/*.json
+
+rm -rf storage/brain/**/*
+rmdir storage/brain/*
+rm -rf storage/rdf/**/*
 rmdir storage/rdf/*
 
-rm -r storage/emissor/**/*
+rm -rf storage/emissor/**/*
 rmdir storage/emissor/*
