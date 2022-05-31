@@ -64,12 +64,15 @@ from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
 
+from cltl.g2ky.api import GetToKnowYou
+from cltl.g2ky.memory import MemoryGetToKnowYou
 from cltl.mention_extraction.api import MentionExtractor
 from cltl.mention_extraction.default_extractor import DefaultMentionExtractor, TextMentionDetector, \
     NewFaceMentionDetector, ObjectMentionDetector
 from cltl.nlp.api import NLP
 from cltl.nlp.spacy_nlp import SpacyNLP
 from cltl_service.entity_linking.service import DisambiguationService
+from cltl_service.g2ky.service import GetToKnowYouService
 from cltl_service.mention_extraction.service import MentionExtractionService
 from cltl_service.nlp.service import NLPService
 
@@ -563,6 +566,29 @@ class ChatUIContainer(EmissorStorageContainer, InfraContainer):
         super().stop()
 
 
+class G2KYContainer(EmissorStorageContainer, InfraContainer):
+    @property
+    @singleton
+    def g2ky(self) -> GetToKnowYou:
+        return MemoryGetToKnowYou()
+
+    @property
+    @singleton
+    def g2ky_service(self) -> GetToKnowYouService:
+        return GetToKnowYouService.from_config(self.g2ky, self.emissor_data_client,
+                                               self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start G2KY")
+        super().start()
+        self.g2ky_service.start()
+
+    def stop(self):
+        logger.info("Stop G2KY")
+        self.g2ky_service.stop()
+        super().stop()
+
+
 class LeolaniContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
@@ -581,21 +607,21 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
                                        self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
-        logger.info("Start Leolani")
+        logger.info("Start Leolani services")
         super().start()
         self.bdi_service.start()
         self.context_service.start()
         self.init_intention.start()
 
     def stop(self):
-        logger.info("Stop Leolani")
+        logger.info("Stop Leolani services")
         self.init_intention.stop()
         self.bdi_service.stop()
         self.context_service.stop()
         super().stop()
 
 
-class ApplicationContainer(ChatUIContainer, LeolaniContainer,
+class ApplicationContainer(ChatUIContainer, LeolaniContainer, G2KYContainer,
                            TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
                            NLPContainer, MentionExtractionContainer,
                            FaceRecognitionContainer, VectorIdContainer, ObjectRecognitionContainer,
@@ -608,10 +634,16 @@ def add_print_handlers(event_bus):
     def print_event(event: Event):
         logger.info("APP event (%s): (%s)", event.metadata.topic, event.payload)
 
+    def print_bdi_event(event: Event):
+        logger.info("BDI event (%s): (%s)", event.metadata.topic, event.payload)
+
     def print_text_event(event: Event[TextSignalEvent]):
         logger.info("UTTERANCE event (%s): (%s)", event.metadata.topic, event.payload.signal.text)
 
     event_bus.subscribe("cltl.topic.scenario", print_event)
+    event_bus.subscribe("cltl.topic.speaker", print_event)
+    event_bus.subscribe("cltl.topic.intention", print_bdi_event)
+    event_bus.subscribe("cltl.topic.desire", print_bdi_event)
     event_bus.subscribe("cltl.topic.microphone", print_event)
     event_bus.subscribe("cltl.topic.image", print_event)
     event_bus.subscribe("cltl.topic.vad", print_event)
