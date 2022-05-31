@@ -27,8 +27,8 @@ from cltl.backend.spi.text import TextOutput
 from cltl.brain.long_term_memory import LongTermMemory
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
-from cltl.combot.event.bdi import DesireEvent, IntentionEvent
-from cltl.combot.event.emissor import ScenarioStopped, TextSignalEvent
+from cltl.combot.event.bdi import IntentionEvent
+from cltl.combot.event.emissor import TextSignalEvent
 from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
 from cltl.combot.infra.di_container import singleton
 from cltl.combot.infra.event import Event
@@ -46,13 +46,14 @@ from cltl.vector_id.clusterid import ClusterIdentity
 from cltl_service.asr.service import AsrService
 from cltl_service.backend.backend import BackendService
 from cltl_service.backend.storage import StorageService
+from cltl_service.bdi.service import BDIService
 from cltl_service.brain.service import BrainService
 from cltl_service.chatui.service import ChatUiService
 from cltl_service.context.service import ContextService
-from cltl_service.bdi.service import BDIService
 from cltl_service.emissordata.client import EmissorDataClient
 from cltl_service.emissordata.service import EmissorDataService
 from cltl_service.face_recognition.service import FaceRecognitionService
+from cltl_service.intentions.init import InitService
 from cltl_service.object_recognition.service import ObjectRecognitionService
 from cltl_service.reply_generation.service import ReplyGenerationService
 from cltl_service.triple_extraction.service import TripleExtractionService
@@ -562,7 +563,7 @@ class ChatUIContainer(EmissorStorageContainer, InfraContainer):
         super().stop()
 
 
-class LeolaniContainer(InfraContainer):
+class LeolaniContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def context_service(self) -> ContextService:
@@ -573,14 +574,22 @@ class LeolaniContainer(InfraContainer):
     def bdi_service(self) -> BDIService:
         return BDIService.from_config(self.event_bus, self.resource_manager, self.config_manager)
 
+    @property
+    @singleton
+    def init_intention(self) -> InitService:
+        return InitService.from_config(self.emissor_data_client,
+                                       self.event_bus, self.resource_manager, self.config_manager)
+
     def start(self):
         logger.info("Start Leolani")
         super().start()
         self.bdi_service.start()
         self.context_service.start()
+        self.init_intention.start()
 
     def stop(self):
         logger.info("Stop Leolani")
+        self.init_intention.stop()
         self.bdi_service.stop()
         self.context_service.stop()
         super().stop()
@@ -661,7 +670,7 @@ def main():
     application.start()
 
     intention_topic = application.config_manager.get_config("cltl.bdi").get("topic_intention")
-    application.event_bus.publish(intention_topic, Event.for_payload(IntentionEvent("init")))
+    application.event_bus.publish(intention_topic, Event.for_payload(IntentionEvent(["init"])))
 
     config = application.config_manager.get_config("cltl.leolani")
     with event_log(application.event_bus, config):
@@ -677,7 +686,7 @@ def main():
         run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
 
         intention_topic = application.config_manager.get_config("cltl.bdi").get("topic_intention")
-        application.event_bus.publish(intention_topic, Event.for_payload(IntentionEvent("terminate")))
+        application.event_bus.publish(intention_topic, Event.for_payload(IntentionEvent(["terminate"])))
         time.sleep(1)
 
         application.stop()
