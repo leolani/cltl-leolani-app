@@ -262,7 +262,12 @@ class ASRContainer(EmissorStorageContainer, InfraContainer):
         # DEBUG
         # storage = "/Users/tkb/automatic/workspaces/robo/eliza-parent/cltl-eliza-app/py-app/storage/audio/debug/asr"
 
-        if implementation == "speechbrain":
+        if implementation == "google":
+            from cltl.asr.google_asr import GoogleASR
+            impl_config = self.config_manager.get_config("cltl.asr.google")
+            asr = GoogleASR(impl_config.get("language"), impl_config.get_int("sampling_rate"),
+                            hints=impl_config.get("hints", multi=True))
+        elif implementation == "speechbrain":
             from cltl.asr.speechbrain_asr import SpeechbrainASR
             impl_config = self.config_manager.get_config("cltl.asr.speechbrain")
             model = impl_config.get("model")
