@@ -16,6 +16,9 @@ project_dependencies ?= $(addprefix $(project_root)/, \
 		cltl-languagegeneration \
 		cltl-mention-detection \
 		cltl-g2ky \
+		cltl-questionprocessor \
+		cltl-visualresponder \
+		cltl-about-agent \
 		cltl-eliza \
 		cltl-leolani \
 		cltl-chat-ui)

@@ -11,6 +11,9 @@ cltl.reply_generation[impl, service]
 cltl.emissor-data[impl,service,client]
 cltl.g2ky[impl,service]
 cltl.leolani
+cltl.factual_question_processing[service]
+cltl.visualresponder
+cltl.about-agent
 cltl.chat-ui[service]
 cltl.eliza
 
