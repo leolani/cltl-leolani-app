@@ -76,6 +76,10 @@ from cltl_service.g2ky.service import GetToKnowYouService
 from cltl_service.mention_extraction.service import MentionExtractionService
 from cltl_service.nlp.service import NLPService
 
+from cltl.about.about import AboutImpl
+from cltl.about.api import About
+from cltl_service.about.service import AboutService
+
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
 
@@ -594,6 +598,28 @@ class G2KYContainer(EmissorStorageContainer, InfraContainer):
         super().stop()
 
 
+class AboutAgentContainer(InfraContainer):
+    @property
+    @singleton
+    def about_agent(self) -> About:
+        return AboutImpl()
+
+    @property
+    @singleton
+    def about_agent_service(self) -> GetToKnowYouService:
+        return AboutService.from_config(self.about_agent, self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start AboutAgent")
+        super().start()
+        self.about_agent_service.start()
+
+    def stop(self):
+        logger.info("Stop AboutAgent")
+        self.about_agent_service.stop()
+        super().stop()
+
+
 class LeolaniContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
@@ -603,7 +629,22 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def bdi_service(self) -> BDIService:
-        return BDIService.from_config(self.event_bus, self.resource_manager, self.config_manager)
+        # TODO make configurable
+        # Model for testing without G2KY
+        # bdi_model = {"init":
+        #                  {"initialized": ["chat"]},
+        #              "chat":
+        #                  {"quit": ["init"]}
+        #              }
+        bdi_model = {"init":
+                         {"initialized": ["g2ky"]},
+                     "g2ky":
+                         {"resolved": ["chat"]},
+                     "chat":
+                         {"quit": ["init"]}
+                     }
+
+        return BDIService.from_config(bdi_model, self.event_bus, self.resource_manager, self.config_manager)
 
     @property
     @singleton
@@ -626,7 +667,7 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
         super().stop()
 
 
-class ApplicationContainer(ChatUIContainer, LeolaniContainer, G2KYContainer,
+class ApplicationContainer(ChatUIContainer, LeolaniContainer, G2KYContainer, AboutAgentContainer,
                            TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
                            NLPContainer, MentionExtractionContainer,
                            FaceRecognitionContainer, VectorIdContainer, ObjectRecognitionContainer,
@@ -653,6 +694,7 @@ def add_print_handlers(event_bus):
     event_bus.subscribe("cltl.topic.image", print_event)
     event_bus.subscribe("cltl.topic.vad", print_event)
     event_bus.subscribe("cltl.topic.text_in", print_text_event)
+    event_bus.subscribe("cltl.topic.chat_text_in", print_text_event)
     event_bus.subscribe("cltl.topic.text_out", print_text_event)
     event_bus.subscribe("cltl.topic.text_out_replier", print_text_event)
     event_bus.subscribe("cltl.topic.triple_extraction", print_event)
