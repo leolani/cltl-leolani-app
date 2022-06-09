@@ -579,7 +579,8 @@ class G2KYContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def g2ky(self) -> GetToKnowYou:
-        return MemoryGetToKnowYou()
+        config = self.config_manager.get_config("cltl.g2ky")
+        return MemoryGetToKnowYou(gaze_images=config.get_int("gaze_images"))
 
     @property
     @singleton
