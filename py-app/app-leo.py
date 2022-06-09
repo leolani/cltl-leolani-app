@@ -335,7 +335,7 @@ class BrainContainer(InfraContainer):
         config = self.config_manager.get_config("cltl.brain")
         brain_address = config.get("address")
         brain_log_dir = config.get("log_dir")
-        clear_brain = config.get("clear_brain")
+        clear_brain = bool(config.get("clear_brain"))
 
         # TODO figure out how to put the brain RDF files in the EMISSOR scenario folder
         return LongTermMemory(address=brain_address,
