@@ -9,6 +9,8 @@ from datetime import datetime
 
 import cltl.leolani.gestures as gestures
 import requests
+from cltl.about.about import AboutImpl
+from cltl.about.api import About
 from cltl.backend.api.backend import Backend
 from cltl.backend.api.camera import CameraResolution, Camera
 from cltl.backend.api.microphone import Microphone
@@ -38,11 +40,19 @@ from cltl.emissordata.api import EmissorDataStorage
 from cltl.emissordata.file_storage import EmissorDataFileStorage
 from cltl.face_recognition.api import FaceDetector
 from cltl.face_recognition.proxy import FaceDetectorProxy
+from cltl.g2ky.api import GetToKnowYou
+from cltl.g2ky.memory import MemoryGetToKnowYou
+from cltl.mention_extraction.api import MentionExtractor
+from cltl.mention_extraction.default_extractor import DefaultMentionExtractor, TextMentionDetector, \
+    NewFaceMentionDetector, ObjectMentionDetector
+from cltl.nlp.api import NLP
+from cltl.nlp.spacy_nlp import SpacyNLP
 from cltl.object_recognition.api import ObjectDetector
 from cltl.object_recognition.proxy import ObjectDetectorProxy
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl.vector_id.api import VectorIdentity
 from cltl.vector_id.clusterid import ClusterIdentity
+from cltl_service.about.service import AboutService
 from cltl_service.asr.service import AsrService
 from cltl_service.backend.backend import BackendService
 from cltl_service.backend.storage import StorageService
@@ -52,8 +62,12 @@ from cltl_service.chatui.service import ChatUiService
 from cltl_service.context.service import ContextService
 from cltl_service.emissordata.client import EmissorDataClient
 from cltl_service.emissordata.service import EmissorDataService
+from cltl_service.entity_linking.service import DisambiguationService
 from cltl_service.face_recognition.service import FaceRecognitionService
+from cltl_service.g2ky.service import GetToKnowYouService
 from cltl_service.intentions.init import InitService
+from cltl_service.mention_extraction.service import MentionExtractionService
+from cltl_service.nlp.service import NLPService
 from cltl_service.object_recognition.service import ObjectRecognitionService
 from cltl_service.reply_generation.service import ReplyGenerationService
 from cltl_service.triple_extraction.service import TripleExtractionService
@@ -63,22 +77,6 @@ from emissor.representation.util import serializer as emissor_serializer
 from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
-
-from cltl.g2ky.api import GetToKnowYou
-from cltl.g2ky.memory import MemoryGetToKnowYou
-from cltl.mention_extraction.api import MentionExtractor
-from cltl.mention_extraction.default_extractor import DefaultMentionExtractor, TextMentionDetector, \
-    NewFaceMentionDetector, ObjectMentionDetector
-from cltl.nlp.api import NLP
-from cltl.nlp.spacy_nlp import SpacyNLP
-from cltl_service.entity_linking.service import DisambiguationService
-from cltl_service.g2ky.service import GetToKnowYouService
-from cltl_service.mention_extraction.service import MentionExtractionService
-from cltl_service.nlp.service import NLPService
-
-from cltl.about.about import AboutImpl
-from cltl.about.api import About
-from cltl_service.about.service import AboutService
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
@@ -337,11 +335,12 @@ class BrainContainer(InfraContainer):
         config = self.config_manager.get_config("cltl.brain")
         brain_address = config.get("address")
         brain_log_dir = config.get("log_dir")
+        clear_brain = config.get("clear_brain")
 
         # TODO figure out how to put the brain RDF files in the EMISSOR scenario folder
         return LongTermMemory(address=brain_address,
                               log_dir=pathlib.Path(brain_log_dir),
-                              clear_all=False)
+                              clear_all=clear_brain)
 
     @property
     @singleton
