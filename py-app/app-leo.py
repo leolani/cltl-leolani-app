@@ -602,7 +602,7 @@ class G2KYContainer(EmissorStorageContainer, InfraContainer):
         super().stop()
 
 
-class AboutAgentContainer(InfraContainer):
+class AboutAgentContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def about_agent(self) -> About:
@@ -611,7 +611,8 @@ class AboutAgentContainer(InfraContainer):
     @property
     @singleton
     def about_agent_service(self) -> GetToKnowYouService:
-        return AboutService.from_config(self.about_agent, self.event_bus, self.resource_manager, self.config_manager)
+        return AboutService.from_config(self.about_agent, self.emissor_data_client,
+                                        self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start AboutAgent")
@@ -674,7 +675,8 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
 class ApplicationContainer(ChatUIContainer, LeolaniContainer, G2KYContainer, AboutAgentContainer,
                            TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
                            NLPContainer, MentionExtractionContainer,
-                           FaceRecognitionContainer, VectorIdContainer, ObjectRecognitionContainer,
+                           FaceRecognitionContainer, VectorIdContainer,
+                           ObjectRecognitionContainer,
                            ASRContainer, VADContainer,
                            EmissorStorageContainer, BackendContainer):
     pass
