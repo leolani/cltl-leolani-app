@@ -373,6 +373,11 @@ class DisambiguationContainer(BrainContainer, InfraContainer):
             linker = NamedEntityLinker(address=brain_address,
                                        log_dir=pathlib.Path(brain_log_dir))
             linkers.append(linker)
+        if "FaceLinker" in implementations:
+            from cltl.entity_linking.face_linker import FaceIDLinker
+            linker = FaceIDLinker(address=brain_address,
+                                       log_dir=pathlib.Path(brain_log_dir))
+            linkers.append(linker)
         if "PronounLinker" in implementations:
             from cltl.reply_generation.rl_replier import PronounLinker
             # TODO This is OK here, we need to see how this will work in a containerized setting
@@ -551,7 +556,7 @@ class MentionExtractionContainer(InfraContainer):
         super().stop()
 
 
-class ChatUIContainer(EmissorStorageContainer, InfraContainer):
+class ChatUIContainer(InfraContainer):
     @property
     @singleton
     def chats(self) -> Chats:
@@ -560,8 +565,7 @@ class ChatUIContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def chatui_service(self) -> ChatUiService:
-        return ChatUiService.from_config(MemoryChats(), self.emissor_data_client, self.event_bus, self.resource_manager,
-                                         self.config_manager)
+        return ChatUiService.from_config(MemoryChats(), self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start Chat UI")
