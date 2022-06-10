@@ -103,7 +103,7 @@ class RemoteTextOutput(TextOutput):
 
         response = f"\\^startTag({animation}){text}^stopTag({animation})"  #### cannot pass in strings with quotes!!
 
-        requests.post(f"http://{self._remote_url}/text", data=response, headers=tts_headers)
+        requests.post(f"{self._remote_url}/text", data=response, headers=tts_headers)
 
 
 class BackendContainer(InfraContainer):
