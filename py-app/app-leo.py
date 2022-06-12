@@ -633,6 +633,12 @@ class AboutAgentContainer(EmissorStorageContainer, InfraContainer):
 class LeolaniContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
+    def keyword_service(self) -> KeywordService:
+        return KeywordService.from_config(self.emissor_data_client,
+                                          self.event_bus, self.resource_manager, self.config_manager)
+
+    @property
+    @singleton
     def context_service(self) -> ContextService:
         return ContextService.from_config(self.event_bus, self.resource_manager, self.config_manager)
 
