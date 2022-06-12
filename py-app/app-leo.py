@@ -4,13 +4,11 @@ import logging.config
 import os
 import pathlib
 import random
-import time
+from collections import defaultdict
 from datetime import datetime
 
-import cltl.leolani.gestures as gestures
 import requests
-from cltl.about.about import AboutImpl
-from cltl.about.api import About
+import time
 from cltl.backend.api.backend import Backend
 from cltl.backend.api.camera import CameraResolution, Camera
 from cltl.backend.api.microphone import Microphone
@@ -52,7 +50,6 @@ from cltl.object_recognition.proxy import ObjectDetectorProxy
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl.vector_id.api import VectorIdentity
 from cltl.vector_id.clusterid import ClusterIdentity
-from cltl_service.about.service import AboutService
 from cltl_service.asr.service import AsrService
 from cltl_service.backend.backend import BackendService
 from cltl_service.backend.storage import StorageService
@@ -66,6 +63,7 @@ from cltl_service.entity_linking.service import DisambiguationService
 from cltl_service.face_recognition.service import FaceRecognitionService
 from cltl_service.g2ky.service import GetToKnowYouService
 from cltl_service.intentions.init import InitService
+from cltl_service.keyword.service import KeywordService
 from cltl_service.mention_extraction.service import MentionExtractionService
 from cltl_service.nlp.service import NLPService
 from cltl_service.object_recognition.service import ObjectRecognitionService
@@ -77,6 +75,10 @@ from emissor.representation.util import serializer as emissor_serializer
 from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
+
+from cltl.about.about import AboutImpl
+from cltl.about.api import About
+from cltl_service.about.service import AboutService
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
@@ -335,7 +337,7 @@ class BrainContainer(InfraContainer):
         config = self.config_manager.get_config("cltl.brain")
         brain_address = config.get("address")
         brain_log_dir = config.get("log_dir")
-        clear_brain = bool(config.get("clear_brain"))
+        clear_brain = bool(config.get_boolean("clear_brain"))
 
         # TODO figure out how to put the brain RDF files in the EMISSOR scenario folder
         return LongTermMemory(address=brain_address,
@@ -373,7 +375,7 @@ class DisambiguationContainer(BrainContainer, InfraContainer):
             linker = NamedEntityLinker(address=brain_address,
                                        log_dir=pathlib.Path(brain_log_dir))
             linkers.append(linker)
-        if "FaceLinker" in implementations:
+        if "FaceIDLinker" in implementations:
             from cltl.entity_linking.face_linker import FaceIDLinker
             linker = FaceIDLinker(address=brain_address,
                                        log_dir=pathlib.Path(brain_log_dir))
@@ -386,6 +388,9 @@ class DisambiguationContainer(BrainContainer, InfraContainer):
             linkers.append(linker)
         if not linkers:
             raise ValueError("Unsupported implementation " + implementations)
+
+        logger.info("Initialized DisambiguationService with linkers %s",
+                    [linker.__class__.__name__ for linker in linkers])
 
         return DisambiguationService.from_config(linkers, self.event_bus, self.resource_manager, self.config_manager)
 
@@ -663,9 +668,11 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
         self.bdi_service.start()
         self.context_service.start()
         self.init_intention.start()
+        self.keyword_service.start()
 
     def stop(self):
         logger.info("Stop Leolani services")
+        self.keyword_service.stop()
         self.init_intention.stop()
         self.bdi_service.stop()
         self.context_service.stop()
@@ -692,6 +699,12 @@ def add_print_handlers(event_bus):
     def print_text_event(event: Event[TextSignalEvent]):
         logger.info("UTTERANCE event (%s): (%s)", event.metadata.topic, event.payload.signal.text)
 
+    event_counts = defaultdict(int)
+    def event_stats(event):
+        event_counts[event.metadata.topic] += 1
+        if sum(event_counts.values()) % 10 == 0:
+            logger.info("STATS: %s", event_counts)
+
     event_bus.subscribe("cltl.topic.scenario", print_event)
     event_bus.subscribe("cltl.topic.speaker", print_event)
     event_bus.subscribe("cltl.topic.intention", print_bdi_event)
@@ -705,6 +718,8 @@ def add_print_handlers(event_bus):
     event_bus.subscribe("cltl.topic.text_out_replier", print_text_event)
     event_bus.subscribe("cltl.topic.triple_extraction", print_event)
     event_bus.subscribe("cltl.topic.brain_response", print_event)
+
+    [event_bus.subscribe(topic, event_stats) for topic in event_bus.topics]
 
 
 def get_event_log_path(config):
