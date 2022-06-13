@@ -81,6 +81,7 @@ from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
 
+import cltl.leolani.gestures as gestures
 from cltl.about.about import AboutImpl
 from cltl.about.api import About
 from cltl_service.about.service import AboutService
