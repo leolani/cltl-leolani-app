@@ -50,6 +50,11 @@ from cltl.object_recognition.proxy import ObjectDetectorProxy
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl.vector_id.api import VectorIdentity
 from cltl.vector_id.clusterid import ClusterIdentity
+from cltl_service.visualresponder.service import VisualResponderService
+
+from cltl.visualresponder.visualresponder import VisualResponderImpl
+
+from cltl.visualresponder.api import VisualResponder
 from cltl_service.asr.service import AsrService
 from cltl_service.backend.backend import BackendService
 from cltl_service.backend.storage import StorageService
@@ -630,6 +635,29 @@ class AboutAgentContainer(EmissorStorageContainer, InfraContainer):
         super().stop()
 
 
+class VisualResponderContainer(EmissorStorageContainer, InfraContainer):
+    @property
+    @singleton
+    def visual_responder(self) -> VisualResponder:
+        return VisualResponderImpl()
+
+    @property
+    @singleton
+    def visual_responder_service(self) -> VisualResponderService:
+        return VisualResponderService.from_config(self.visual_responder, self.emissor_data_client,
+                                        self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start VisualResponder")
+        super().start()
+        self.visual_responder_service.start()
+
+    def stop(self):
+        logger.info("Stop VisualResponder")
+        self.visual_responder_service.stop()
+        super().stop()
+
+
 class LeolaniContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
@@ -685,7 +713,8 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
         super().stop()
 
 
-class ApplicationContainer(ChatUIContainer, LeolaniContainer, G2KYContainer, AboutAgentContainer,
+class ApplicationContainer(ChatUIContainer, LeolaniContainer, G2KYContainer,
+                           AboutAgentContainer, VisualResponderContainer,
                            TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
                            NLPContainer, MentionExtractionContainer,
                            FaceRecognitionContainer, VectorIdContainer,
