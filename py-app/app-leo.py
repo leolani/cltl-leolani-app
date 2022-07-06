@@ -676,18 +676,18 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
     def bdi_service(self) -> BDIService:
         # TODO make configurable
         # Model for testing without G2KY
-        # bdi_model = {"init":
-        #                  {"initialized": ["chat"]},
-        #              "chat":
-        #                  {"quit": ["init"]}
-        #              }
         bdi_model = {"init":
-                         {"initialized": ["g2ky"]},
-                     "g2ky":
-                         {"resolved": ["chat"]},
+                         {"initialized": ["chat"]},
                      "chat":
                          {"quit": ["init"]}
                      }
+        # bdi_model = {"init":
+        #                  {"initialized": ["g2ky"]},
+        #              "g2ky":
+        #                  {"resolved": ["chat"]},
+        #              "chat":
+        #                  {"quit": ["init"]}
+        #              }
 
         return BDIService.from_config(bdi_model, self.event_bus, self.resource_manager, self.config_manager)
 
