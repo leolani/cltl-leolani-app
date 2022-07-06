@@ -10,6 +10,7 @@ rm -f storage/audio/*.json
 
 rm -f storage/image/*.png
 rm -f storage/image/*.json
+rm -f storage/image/*.pkl
 
 rm -rf storage/brain/**/*
 rmdir storage/brain/*
