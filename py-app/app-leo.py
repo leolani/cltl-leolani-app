@@ -70,6 +70,7 @@ from cltl_service.g2ky.service import GetToKnowYouService
 from cltl_service.intentions.init import InitService
 from cltl_service.keyword.service import KeywordService
 from cltl_service.mention_extraction.service import MentionExtractionService
+from cltl_service.monitoring.service import MonitoringService
 from cltl_service.nlp.service import NLPService
 from cltl_service.object_recognition.service import ObjectRecognitionService
 from cltl_service.reply_generation.service import ReplyGenerationService
@@ -662,6 +663,11 @@ class VisualResponderContainer(EmissorStorageContainer, InfraContainer):
 class LeolaniContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
+    def monitoring_service(self) -> MonitoringService:
+        return MonitoringService.from_config(self.event_bus, self.resource_manager, self.config_manager)
+
+    @property
+    @singleton
     def keyword_service(self) -> KeywordService:
         return KeywordService.from_config(self.emissor_data_client,
                                           self.event_bus, self.resource_manager, self.config_manager)
@@ -704,9 +710,11 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
         self.context_service.start()
         self.init_intention.start()
         self.keyword_service.start()
+        self.monitoring_service.start()
 
     def stop(self):
         logger.info("Stop Leolani services")
+        self.monitoring_service.stop()
         self.keyword_service.stop()
         self.init_intention.stop()
         self.bdi_service.stop()
@@ -817,6 +825,7 @@ def main():
             '/storage': application.storage_service.app,
             '/emissor': application.emissor_data_service.app,
             '/chatui': application.chatui_service.app,
+            '/monitoring': application.monitoring_service.app,
         })
 
         run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
