@@ -498,7 +498,7 @@ class VectorIdContainer(InfraContainer):
     def vector_id(self) -> VectorIdentity:
         config = self.config_manager.get_config("cltl.vector_id.agg")
 
-        return ClusterIdentity.agglomerative(0, config.get_float("distance_threshold"))
+        return ClusterIdentity.agglomerative(0, config.get_float("distance_threshold"), config.get("storage_path"))
 
     @property
     @singleton
