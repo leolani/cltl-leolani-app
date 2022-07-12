@@ -38,6 +38,8 @@ from cltl.emissordata.api import EmissorDataStorage
 from cltl.emissordata.file_storage import EmissorDataFileStorage
 from cltl.face_recognition.api import FaceDetector
 from cltl.face_recognition.proxy import FaceDetectorProxy
+from cltl.friends.api import FriendStore
+from cltl.friends.brain import BrainFriendsStore
 from cltl.g2ky.api import GetToKnowYou
 from cltl.g2ky.memory import MemoryGetToKnowYou
 from cltl.mention_extraction.api import MentionExtractor
@@ -498,7 +500,7 @@ class VectorIdContainer(InfraContainer):
     def vector_id(self) -> VectorIdentity:
         config = self.config_manager.get_config("cltl.vector_id.agg")
 
-        return ClusterIdentity.agglomerative(0, config.get_float("distance_threshold"))
+        return ClusterIdentity.agglomerative(0, config.get_float("distance_threshold"), config.get("storage_path"))
 
     @property
     @singleton
@@ -590,30 +592,6 @@ class ChatUIContainer(InfraContainer):
         super().stop()
 
 
-class G2KYContainer(EmissorStorageContainer, InfraContainer):
-    @property
-    @singleton
-    def g2ky(self) -> GetToKnowYou:
-        config = self.config_manager.get_config("cltl.g2ky")
-        return MemoryGetToKnowYou(gaze_images=config.get_int("gaze_images"))
-
-    @property
-    @singleton
-    def g2ky_service(self) -> GetToKnowYouService:
-        return GetToKnowYouService.from_config(self.g2ky, self.emissor_data_client,
-                                               self.event_bus, self.resource_manager, self.config_manager)
-
-    def start(self):
-        logger.info("Start G2KY")
-        super().start()
-        self.g2ky_service.start()
-
-    def stop(self):
-        logger.info("Stop G2KY")
-        self.g2ky_service.stop()
-        super().stop()
-
-
 class AboutAgentContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
@@ -663,8 +641,17 @@ class VisualResponderContainer(EmissorStorageContainer, InfraContainer):
 class LeolaniContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
+    def friend_store(self) -> FriendStore:
+        config = self.config_manager.get_config("cltl.brain")
+        brain_address = config.get("address")
+        brain_log_dir = pathlib.Path(config.get("log_dir"))
+
+        return BrainFriendsStore(brain_address, brain_log_dir)
+
+    @property
+    @singleton
     def monitoring_service(self) -> MonitoringService:
-        return MonitoringService.from_config(self.event_bus, self.resource_manager, self.config_manager)
+        return MonitoringService.from_config(self.friend_store, self.event_bus, self.resource_manager, self.config_manager)
 
     @property
     @singleton
@@ -675,7 +662,7 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def context_service(self) -> ContextService:
-        return ContextService.from_config(self.event_bus, self.resource_manager, self.config_manager)
+        return ContextService.from_config(self.friend_store, self.event_bus, self.resource_manager, self.config_manager)
 
     @property
     @singleton
@@ -722,7 +709,38 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
         super().stop()
 
 
-class ApplicationContainer(ChatUIContainer, LeolaniContainer, G2KYContainer,
+class G2KYContainer(LeolaniContainer, EmissorStorageContainer, InfraContainer):
+    @property
+    @singleton
+    def g2ky(self) -> GetToKnowYou:
+        config = self.config_manager.get_config("cltl.g2ky")
+        get_friends = self.friend_store.get_friends()
+        friends = {face_id: names[1][0]
+                   for face_id, names in get_friends.items()
+                   if names[1]}
+
+        logger.info("Initialized G2KY with %s friends", len(friends))
+
+        return MemoryGetToKnowYou(gaze_images=config.get_int("gaze_images"), friends=friends)
+
+    @property
+    @singleton
+    def g2ky_service(self) -> GetToKnowYouService:
+        return GetToKnowYouService.from_config(self.g2ky, self.emissor_data_client,
+                                               self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start G2KY")
+        super().start()
+        self.g2ky_service.start()
+
+    def stop(self):
+        logger.info("Stop G2KY")
+        self.g2ky_service.stop()
+        super().stop()
+
+
+class ApplicationContainer(ChatUIContainer, G2KYContainer, LeolaniContainer,
                            AboutAgentContainer, VisualResponderContainer,
                            TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
                            NLPContainer, MentionExtractionContainer,
