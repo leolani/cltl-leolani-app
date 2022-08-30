@@ -135,7 +135,6 @@ class BackendContainer(InfraContainer):
     @singleton
     def audio_source(self) -> AudioSource:
         return ClientAudioSource.from_config(self.config_manager)
-        # return PyAudioSource(16000, 1, 480)
 
     @property
     @singleton
@@ -196,9 +195,9 @@ class BackendContainer(InfraContainer):
         video_config = self.config_manager.get_config('cltl.video')
 
         return BackendServer(audio_config.get_int('sampling_rate'), audio_config.get_int('channels'),
-                               audio_config.get_int('frame_size'),
-                               video_config.get_enum('resolution', CameraResolution),
-                               video_config.get_int('camera_index'))
+                             audio_config.get_int('frame_size'),
+                             video_config.get_enum('resolution', CameraResolution),
+                             video_config.get_int('camera_index'))
 
     def start(self):
         logger.info("Start Backend")
@@ -653,12 +652,19 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def friend_store(self) -> FriendStore:
-    #     config = self.config_manager.get_config("cltl.brain")
-    #     brain_address = config.get("address")
-    #     brain_log_dir = pathlib.Path(config.get("log_dir"))
-    #
-    #     return BrainFriendsStore(brain_address, brain_log_dir)
-        return MemoryFriendsStore()
+        implementation = self.config_manager.get_config("cltl.leolani.friends").get("implementation")
+
+        if implementation == "brain":
+            config = self.config_manager.get_config("cltl.brain")
+            brain_address = config.get("address")
+            brain_log_dir = pathlib.Path(config.get("log_dir"))
+
+            return BrainFriendsStore(brain_address, brain_log_dir)
+
+        if implementation == "memory":
+            return MemoryFriendsStore()
+
+        raise ValueError("Unsupported implemenation: " + implementation)
 
     @property
     @singleton
@@ -754,10 +760,10 @@ class G2KYContainer(LeolaniContainer, EmissorStorageContainer, InfraContainer):
 
 class ApplicationContainer(ChatUIContainer, G2KYContainer, LeolaniContainer,
                            AboutAgentContainer, VisualResponderContainer,
-                           # TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
-                           # NLPContainer, MentionExtractionContainer,
-                           # FaceRecognitionContainer, VectorIdContainer,
-                           # ObjectRecognitionContainer,
+                           TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
+                           NLPContainer, MentionExtractionContainer,
+                           FaceRecognitionContainer, VectorIdContainer,
+                           ObjectRecognitionContainer,
                            ASRContainer, VADContainer,
                            EmissorStorageContainer, BackendContainer):
     pass

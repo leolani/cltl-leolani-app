@@ -21,6 +21,8 @@ from cltl.backend.impl.sync_tts import SynchronizedTextToSpeech, TextOutputTTS
 from cltl.backend.server import BackendServer
 from cltl.backend.source.client_source import ClientAudioSource, ClientImageSource
 from cltl.backend.source.console_source import ConsoleOutput
+from cltl.backend.source.cv2_source import SystemImageSource
+from cltl.backend.source.pyaudio_source import PyAudioSource
 from cltl.backend.spi.audio import AudioSource
 from cltl.backend.spi.image import ImageSource
 from cltl.backend.spi.text import TextOutput
@@ -40,6 +42,7 @@ from cltl.face_recognition.api import FaceDetector
 from cltl.face_recognition.proxy import FaceDetectorProxy
 from cltl.friends.api import FriendStore
 from cltl.friends.brain import BrainFriendsStore
+from cltl.friends.memory import MemoryFriendsStore
 from cltl.g2ky.api import GetToKnowYou
 from cltl.g2ky.memory import MemoryGetToKnowYou
 from cltl.mention_extraction.api import MentionExtractor
@@ -184,18 +187,23 @@ class BackendContainer(InfraContainer):
     @property
     @singleton
     def server(self) -> Flask:
+        if not self.config_manager.get_config('cltl.backend').get_boolean("run_server"):
+            # Return a placeholder
+            return ""
+
         audio_config = self.config_manager.get_config('cltl.audio')
         video_config = self.config_manager.get_config('cltl.video')
-        server = BackendServer(audio_config.get_int('sampling_rate'), audio_config.get_int('channels'),
-                               audio_config.get_int('frame_size'),
-                               video_config.get_enum('resolution', CameraResolution),
-                               video_config.get_int('camera_index'))
 
-        return server.app
+        return BackendServer(audio_config.get_int('sampling_rate'), audio_config.get_int('channels'),
+                             audio_config.get_int('frame_size'),
+                             video_config.get_enum('resolution', CameraResolution),
+                             video_config.get_int('camera_index'))
 
     def start(self):
         logger.info("Start Backend")
         super().start()
+        if self.server:
+            self.server.start()
         self.storage_service.start()
         self.backend_service.start()
 
@@ -203,6 +211,8 @@ class BackendContainer(InfraContainer):
         logger.info("Stop Backend")
         self.storage_service.stop()
         self.backend_service.stop()
+        if self.server:
+            self.server.stop()
         super().stop()
 
 
@@ -246,7 +256,7 @@ class VADContainer(InfraContainer):
         padding = config.get_int("padding")
         storage = None
         # DEBUG
-        # storage = "/Users/tkb/automatic/workspaces/robo/eliza-parent/cltl-eliza-app/py-app/storage/audio/debug/vad"
+        storage = "/Users/tkb/automatic/workspaces/robo/eliza-parent/cltl-eliza-app/py-app/storage/audio/debug/vad"
 
         vad = WebRtcVAD(activity_window, activity_threshold, allow_gap, padding, storage=storage)
 
@@ -642,11 +652,19 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def friend_store(self) -> FriendStore:
-        config = self.config_manager.get_config("cltl.brain")
-        brain_address = config.get("address")
-        brain_log_dir = pathlib.Path(config.get("log_dir"))
+        implementation = self.config_manager.get_config("cltl.leolani.friends").get("implementation")
 
-        return BrainFriendsStore(brain_address, brain_log_dir)
+        if implementation == "brain":
+            config = self.config_manager.get_config("cltl.brain")
+            brain_address = config.get("address")
+            brain_log_dir = pathlib.Path(config.get("log_dir"))
+
+            return BrainFriendsStore(brain_address, brain_log_dir)
+
+        if implementation == "memory":
+            return MemoryFriendsStore()
+
+        raise ValueError("Unsupported implemenation: " + implementation)
 
     @property
     @singleton
@@ -836,15 +854,17 @@ def main():
 
     config = application.config_manager.get_config("cltl.leolani")
     with event_log(application.event_bus, config):
-        config = application.config_manager.get_config("cltl.brain")
-
-        web_app = DispatcherMiddleware(Flask("Leolani app"), {
-            '/host': application.server,
+        routes = {
             '/storage': application.storage_service.app,
             '/emissor': application.emissor_data_service.app,
             '/chatui': application.chatui_service.app,
             '/monitoring': application.monitoring_service.app,
-        })
+        }
+
+        if application.server:
+            routes['/host'] = application.server.app
+
+        web_app = DispatcherMiddleware(Flask("Leolani app"), routes)
 
         run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
 
