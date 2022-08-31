@@ -462,7 +462,8 @@ class ObjectRecognitionContainer(InfraContainer):
     @property
     @singleton
     def object_detector(self) -> ObjectDetector:
-        return ObjectDetectorProxy()
+        start_infra = self.config_manager.get_config("cltl.object_recognition").get_boolean("start_infra")
+        return ObjectDetectorProxy(start_infra)
 
     @property
     @singleton
@@ -485,7 +486,8 @@ class FaceRecognitionContainer(InfraContainer):
     @property
     @singleton
     def face_detector(self) -> FaceDetector:
-        return FaceDetectorProxy()
+        start_infra = self.config_manager.get_config("cltl.face_recognition").get_boolean("start_infra")
+        return FaceDetectorProxy(start_infra)
 
     @property
     @singleton
