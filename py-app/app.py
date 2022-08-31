@@ -492,7 +492,7 @@ class FaceRecognitionContainer(InfraContainer):
         config = self.config_manager.get_config("cltl.face_recognition")
         start_infra = config.get_boolean("start_infra")
         detector_url = config.get("detector_url") if "detector_url" in config else None
-        age_gender_url = config.get_boolean("age_gender_url") if "age_gender_url" in config else None
+        age_gender_url = config.get("age_gender_url") if "age_gender_url" in config else None
 
         return FaceDetectorProxy(start_infra, detector_url, age_gender_url)
 
