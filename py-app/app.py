@@ -462,8 +462,11 @@ class ObjectRecognitionContainer(InfraContainer):
     @property
     @singleton
     def object_detector(self) -> ObjectDetector:
-        start_infra = self.config_manager.get_config("cltl.object_recognition").get_boolean("start_infra")
-        return ObjectDetectorProxy(start_infra)
+        config = self.config_manager.get_config("cltl.object_recognition")
+        start_infra = config.get_boolean("start_infra")
+        detector_url = config.get("detector_url") if "detector_url" in config else None
+
+        return ObjectDetectorProxy(start_infra, detector_url)
 
     @property
     @singleton
@@ -486,8 +489,12 @@ class FaceRecognitionContainer(InfraContainer):
     @property
     @singleton
     def face_detector(self) -> FaceDetector:
-        start_infra = self.config_manager.get_config("cltl.face_recognition").get_boolean("start_infra")
-        return FaceDetectorProxy(start_infra)
+        config = self.config_manager.get_config("cltl.face_recognition")
+        start_infra = config.get_boolean("start_infra")
+        detector_url = config.get("detector_url") if "detector_url" in config else None
+        age_gender_url = config.get_boolean("age_gender_url") if "age_gender_url" in config else None
+
+        return FaceDetectorProxy(start_infra, detector_url, age_gender_url)
 
     @property
     @singleton
