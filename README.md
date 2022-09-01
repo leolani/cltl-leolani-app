@@ -104,8 +104,41 @@ additional infrastructure to enable the communication between the modules, as fo
 resource management, container orchestration etc. In exchange this can be harder to setup and to debug, as
 each module and the communication between them has to be inspected separately.
 
-Container management can be done different tools. The next two sections describe two such setups. Also
+Container management can be done different tools. The next sections describe such setups. Also
 see the [Docker documentation](https://docs.docker.com/get-started/orchestration/).
+
+#### Docker compose parent app application
+
+The `docker-parent-app/` directory provides a docker-compose setup to run a dockerized version of the local Python
+application provided in `py-app/`.
+
+* Install the backend including the `[host]` dependencies:
+
+      python -m venv venv
+      source venv/bin/activate
+      pip install cltl.backend[host]==0.0.dev5
+
+
+* Run the backend server on the local machine with
+
+      ./venv/bin/leoserv --channels 1 --port 8080 --resolution VGA
+
+  The parameters should match the configured values in `py-app/config/default.comfig` and `docker-parent-app/config/`.
+
+* Start GraphDB on your local machine.
+
+* Start the docker-compose application from `docker-parent-app/` with
+
+      docker compose up
+
+  For more information on docker compose see the [documentation](https://docs.docker.com/compose/).
+
+To build the Docker image from scratch, from the leolani parent directory run
+
+    docker build -t <MY_IMAGE_NAME> .
+
+and replace the image name in `docker-parent-app/docker-compose.yml`.
+
 
 #### Docker compose app application
 
