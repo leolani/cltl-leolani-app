@@ -256,7 +256,7 @@ class VADContainer(InfraContainer):
         padding = config.get_int("padding")
         storage = None
         # DEBUG
-        storage = "/Users/tkb/automatic/workspaces/robo/eliza-parent/cltl-eliza-app/py-app/storage/audio/debug/vad"
+        # storage = "/Users/tkb/automatic/workspaces/robo/eliza-parent/cltl-eliza-app/py-app/storage/audio/debug/vad"
 
         vad = WebRtcVAD(activity_window, activity_threshold, allow_gap, padding, storage=storage)
 
