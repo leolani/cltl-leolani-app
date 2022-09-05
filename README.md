@@ -112,14 +112,27 @@ see the [Docker documentation](https://docs.docker.com/get-started/orchestration
 The `docker-parent-app/` directory provides a docker-compose setup to run a dockerized version of the local Python
 application provided in `py-app/`.
 
-* Install the backend including the `[host]` dependencies:
+* It is recommended to create a virtual environment
 
       python -m venv venv
+
+  and activate it with
+
       source venv/bin/activate
+
+  on Linux/OS X or for Windows in cmd.exe
+
+      C:\> <venv>\Scripts\activate.bat
+
+  or in a PowerShell
+
+      C:\> <venv>\Scripts\Activate.ps1
+
+* Install the backend including the `[host]` dependencies:
+
       pip install cltl.backend[host]==0.0.dev5
 
-
-* Run the backend server on the local machine with
+* Run the backend server on the local machine, on Linux/OS X with
 
       ./venv/bin/leoserv --channels 1 --port 8080 --resolution VGA
 
@@ -133,11 +146,11 @@ application provided in `py-app/`.
 
   For more information on docker compose see the [documentation](https://docs.docker.com/compose/).
 
-To build the Docker image from scratch, from the leolani parent directory run
+To build the Docker image from scratch, from the Leolani parent directory run
 
     docker build -t <MY_IMAGE_NAME> .
 
-and replace the image name in `docker-parent-app/docker-compose.yml`.
+and replace the `leolani` image in `docker-parent-app/docker-compose.yml` with your tag name.
 
 
 #### Docker compose app application
