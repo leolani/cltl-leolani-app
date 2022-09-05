@@ -140,6 +140,18 @@ application provided in `py-app/`.
 
 * Start GraphDB on your local machine.
 
+* To use Google Cloud services for speech recognition,setup that up a project as described on their [homepage](https://cloud.google.com/speech-to-text/docs/before-you-begin).
+  Copy the `google_cloud_key.json` obtained there into the `docker-parent-app/credentials/` folder.
+
+* To use a local speech recognition implementation, in the `docker-parent-app/config` folder create a
+  file with the name `cltl.asr` containing the line
+
+      implementation: wav2vec
+
+  and a file called `cltl.asr.wav2vec` with content
+
+      model: jonatasgrosman/wav2vec2-large-xlsr-53-english
+
 * Start the docker-compose application from `docker-parent-app/` with
 
       docker compose up
