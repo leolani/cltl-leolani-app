@@ -131,12 +131,16 @@ application provided in `py-app/`.
 * Install the backend including the `[host]` dependencies:
 
       pip install cltl.backend[host]==0.0.dev5
+      
+      or
+      
+      pip install 'cltl.backend[host]'==0.0.dev5
 
 * Run the backend server on the local machine, on Linux/OS X with
 
       ./venv/bin/leoserv --channels 1 --port 8080 --resolution VGA
 
-  The parameters should match the configured values in `py-app/config/default.comfig` and `docker-parent-app/config/`.
+  The parameters should match the configured values in `py-app/config/default.config` and `docker-parent-app/config/`.
 
 * Start GraphDB on your local machine.
 
