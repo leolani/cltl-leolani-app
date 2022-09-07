@@ -38,8 +38,13 @@ spacy.lock:
 	touch spacy.lock
 
 
+nltk.lock:
+	source venv/bin/activate; python -m nltk.downloader all
+	touch ntlk.lock
+
+
 .PHONY: build
-build: venv spacy.lock
+build: venv nltk.lock
 
 
 .PHONY: clean
