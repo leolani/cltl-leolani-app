@@ -138,3 +138,4 @@ k8-app/charts/
 
 py-app/data/scenarios/*
 spacy.lock
+nltk.lock

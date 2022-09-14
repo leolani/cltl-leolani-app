@@ -39,15 +39,15 @@ spacy.lock:
 
 
 nltk.lock:
-	source venv/bin/activate; python -m nltk.downloader all
-	touch ntlk.lock
+	source venv/bin/activate; python -m nltk.downloader -d ~/nltk_data all
+	touch nltk.lock
 
 
 .PHONY: build
-build: venv nltk.lock
+build: venv nltk.lock spacy.lock
 
 
 .PHONY: clean
 clean:
 	rm -rf venv dist
-	rm -f spacy.lock
+	rm -f spacy.lock nltk.lock
