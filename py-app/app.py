@@ -4,11 +4,11 @@ import logging.config
 import os
 import pathlib
 import random
-from collections import defaultdict
+import time
 from datetime import datetime
 
+import cltl.leolani.gestures as gestures
 import requests
-import time
 from cltl.backend.api.backend import Backend
 from cltl.backend.api.camera import CameraResolution, Camera
 from cltl.backend.api.microphone import Microphone
@@ -21,8 +21,6 @@ from cltl.backend.impl.sync_tts import SynchronizedTextToSpeech, TextOutputTTS
 from cltl.backend.server import BackendServer
 from cltl.backend.source.client_source import ClientAudioSource, ClientImageSource
 from cltl.backend.source.console_source import ConsoleOutput
-from cltl.backend.source.cv2_source import SystemImageSource
-from cltl.backend.source.pyaudio_source import PyAudioSource
 from cltl.backend.spi.audio import AudioSource
 from cltl.backend.spi.image import ImageSource
 from cltl.backend.spi.text import TextOutput
@@ -30,7 +28,6 @@ from cltl.brain.long_term_memory import LongTermMemory
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
 from cltl.combot.event.bdi import IntentionEvent
-from cltl.combot.event.emissor import TextSignalEvent
 from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
 from cltl.combot.infra.di_container import singleton
 from cltl.combot.infra.event import Event
@@ -55,11 +52,6 @@ from cltl.object_recognition.proxy import ObjectDetectorProxy
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl.vector_id.api import VectorIdentity
 from cltl.vector_id.clusterid import ClusterIdentity
-from cltl_service.visualresponder.service import VisualResponderService
-
-from cltl.visualresponder.visualresponder import VisualResponderImpl
-
-from cltl.visualresponder.api import VisualResponder
 from cltl_service.asr.service import AsrService
 from cltl_service.backend.backend import BackendService
 from cltl_service.backend.storage import StorageService
@@ -87,10 +79,12 @@ from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
 
-import cltl.leolani.gestures as gestures
 from cltl.about.about import AboutImpl
 from cltl.about.api import About
+from cltl.visualresponder.api import VisualResponder
+from cltl.visualresponder.visualresponder import VisualResponderImpl
 from cltl_service.about.service import AboutService
+from cltl_service.visualresponder.service import VisualResponderService
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
