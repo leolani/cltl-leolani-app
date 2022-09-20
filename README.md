@@ -1,12 +1,12 @@
 # cltl-leolani-app
 
-Eliza implementation using the combot framework.
+Leolani implementation using the combot framework.
 
 This application also serves as a blue-print for applications in the combot framework.
 
 ## Application Architecture
 
-![Eliza app - Architectur](doc/ElizaCombot.png)
+![Leolani app - Architectur](doc/LeolaniCombot.png)
 
 ### Components
 
@@ -36,7 +36,7 @@ Subscribes to voice activity events and transcribes audio data referenced in the
 to text. For the transcribed text, a text signal event is published, referencing the respective segment in the
 AudioSignal.
 
-#### Eliza module
+#### Leolani module
 
 Subscribes to text signals where the robot is not the speaker, processes the text and publishes a new text signal
 with a response.
@@ -87,7 +87,7 @@ The local Python application is setup in the `py-app/` folder and has the follow
         └── video
 
 The entry point of the application is the `app.py` script and from the `py-app/` directory after running `make build`
-from the [eliza-parent](https://github.com/leolani/eliza-parent) it can be run via
+from the [leolani-mmai-parent](https://github.com/leolani/leolani-mmai-parent) it can be run via
 
     source venv/bin/activate
     python app.py
