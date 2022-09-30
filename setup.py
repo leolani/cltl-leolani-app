@@ -32,7 +32,7 @@ setup(
         "cltl.triple_extraction[service]",
         "cltl.reply_generation[service]",
         "cltl.mention-detection[service]",
-        "cltl.emotion-detection[service],
+        "cltl.emotion-detection[service]",
         "cltl.dialogue_act_classification[service]",
         "flask",
         "werkzeug"
