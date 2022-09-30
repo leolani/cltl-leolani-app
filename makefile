@@ -15,6 +15,8 @@ project_dependencies ?= $(addprefix $(project_root)/, \
 		cltl-knowledgelinking \
 		cltl-languagegeneration \
 		cltl-mention-detection \
+		cltl-emotionrecognition \
+		cltl-dialogueclassification \
 		cltl-g2ky \
 		cltl-questionprocessor \
 		cltl-visualresponder \
