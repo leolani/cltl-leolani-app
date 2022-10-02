@@ -9,6 +9,7 @@ project_dependencies ?= $(addprefix $(project_root)/, \
 		cltl-object-recognition \
 		cltl-vad \
 		cltl-asr \
+		cltl-dialogueclassification \
 		cltl-emissor-data \
 		cltl-knowledgerepresentation \
 		cltl-knowledgeextraction \
