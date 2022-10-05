@@ -20,23 +20,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     python_requires='>=3.8',
-    install_requires=[
-        "cltl.backend[impl,host,service]",
-        "cltl.asr[impl,service]",
-        "cltl.vad[impl,service]",
-        "cltl.chat-ui",
-        "cltl.g2ky[impl,service]",
-        "cltl.leolani",
-        "cltl.emissor-data[impl,service,client]",
-        "cltl.brain[service]",
-        "cltl.triple_extraction[service]",
-        "cltl.reply_generation[service]",
-        "cltl.mention-detection[service]",
-        "cltl.emotionrecognition[service]",
-        "cltl.dialogueclassification[service]",
-        "flask",
-        "werkzeug"
-    ],
+    install_requires=[],
     entry_points={
         'leolani': [ 'leolani = app:main']
     }
