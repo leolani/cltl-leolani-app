@@ -35,6 +35,9 @@ from cltl.combot.infra.event.memory import SynchronousEventBusContainer
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
 from cltl.emissordata.api import EmissorDataStorage
 from cltl.emissordata.file_storage import EmissorDataFileStorage
+from cltl.emotion_extraction.api import EmotionExtractor
+from cltl.emotion_extraction.utterance_go_emotion_extractor import GoEmotionDetector
+from cltl.emotion_extraction.utterance_vader_sentiment_extractor import VaderSentimentDetector
 from cltl.face_recognition.api import FaceDetector
 from cltl.face_recognition.proxy import FaceDetectorProxy
 from cltl.friends.api import FriendStore
@@ -61,6 +64,7 @@ from cltl_service.chatui.service import ChatUiService
 from cltl_service.context.service import ContextService
 from cltl_service.emissordata.client import EmissorDataClient
 from cltl_service.emissordata.service import EmissorDataService
+from cltl_service.emotion_extraction.service import EmotionExtractionService
 from cltl_service.entity_linking.service import DisambiguationService
 from cltl_service.face_recognition.service import FaceRecognitionService
 from cltl_service.g2ky.service import GetToKnowYouService
@@ -532,6 +536,40 @@ class VectorIdContainer(InfraContainer):
         super().stop()
 
 
+class EmotionRecognitionContainer(InfraContainer):
+    @property
+    @singleton
+    def emotion_extractor(self) -> EmotionExtractor:
+        config = self.config_manager.get_config("cltl.emotion_recognition")
+        implementation = config.get("impl")
+
+        if implementation == "Go":
+            config = self.config_manager.get_config("cltl.emotion_recognition.go")
+            detector = GoEmotionDetector(config.get("model"))
+        elif implementation == "Vader":
+            detector = VaderSentimentDetector()
+        else:
+            raise ValueError("Unknown emotion extractor implementation: " + implementation)
+
+        return detector
+
+    @property
+    @singleton
+    def emotion_recognition_service(self) -> EmotionExtractionService:
+        return EmotionExtractionService.from_config(self.emotion_extractor, self.event_bus,
+                                                    self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Emotion Recognition")
+        super().start()
+        self.emotion_recognition_service.start()
+
+    def stop(self):
+        logger.info("Stop Emotion Recognition")
+        self.emotion_recognition_service.stop()
+        super().stop()
+
+
 class NLPContainer(InfraContainer):
     @property
     @singleton
@@ -766,7 +804,7 @@ class ApplicationContainer(ChatUIContainer, G2KYContainer, LeolaniContainer,
                            TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
                            NLPContainer, MentionExtractionContainer,
                            FaceRecognitionContainer, VectorIdContainer,
-                           ObjectRecognitionContainer,
+                           ObjectRecognitionContainer, EmotionRecognitionContainer,
                            ASRContainer, VADContainer,
                            EmissorStorageContainer, BackendContainer):
     pass

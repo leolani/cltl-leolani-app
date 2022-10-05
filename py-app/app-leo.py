@@ -34,7 +34,8 @@ from app import (BackendContainer,
                  AboutAgentContainer,
                  VisualResponderContainer,
                  LeolaniContainer,
-                 G2KYContainer
+                 G2KYContainer,
+                 EmotionRecognitionContainer
                  )
 
 
@@ -43,7 +44,7 @@ class ApplicationContainer(ChatUIContainer, G2KYContainer, LeolaniContainer,
                            TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
                            NLPContainer, MentionExtractionContainer,
                            FaceRecognitionContainer, VectorIdContainer,
-                           ObjectRecognitionContainer,
+                           ObjectRecognitionContainer, EmotionRecognitionContainer,
                            ASRContainer, VADContainer,
                            EmissorStorageContainer, BackendContainer):
     pass
