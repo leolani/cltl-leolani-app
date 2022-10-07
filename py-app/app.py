@@ -4,11 +4,13 @@ import logging.config
 import os
 import pathlib
 import random
-import time
 from datetime import datetime
 
 import cltl.leolani.gestures as gestures
 import requests
+import time
+from cltl.about.about import AboutImpl
+from cltl.about.api import About
 from cltl.backend.api.backend import Backend
 from cltl.backend.api.camera import CameraResolution, Camera
 from cltl.backend.api.microphone import Microphone
@@ -38,6 +40,10 @@ from cltl.emissordata.file_storage import EmissorDataFileStorage
 from cltl.emotion_extraction.api import EmotionExtractor
 from cltl.emotion_extraction.utterance_go_emotion_extractor import GoEmotionDetector
 from cltl.emotion_extraction.utterance_vader_sentiment_extractor import VaderSentimentDetector
+from cltl.emotion_responder.api import EmotionResponder
+from cltl.emotion_responder.emotion_responder import EmotionResponderImpl
+from cltl.face_emotion_extraction.api import FaceEmotionExtractor
+from cltl.face_emotion_extraction.context_face_emotion_extractor import ContextFaceEmotionExtractor
 from cltl.face_recognition.api import FaceDetector
 from cltl.face_recognition.proxy import FaceDetectorProxy
 from cltl.friends.api import FriendStore
@@ -55,6 +61,9 @@ from cltl.object_recognition.proxy import ObjectDetectorProxy
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl.vector_id.api import VectorIdentity
 from cltl.vector_id.clusterid import ClusterIdentity
+from cltl.visualresponder.api import VisualResponder
+from cltl.visualresponder.visualresponder import VisualResponderImpl
+from cltl_service.about.service import AboutService
 from cltl_service.asr.service import AsrService
 from cltl_service.backend.backend import BackendService
 from cltl_service.backend.storage import StorageService
@@ -65,7 +74,9 @@ from cltl_service.context.service import ContextService
 from cltl_service.emissordata.client import EmissorDataClient
 from cltl_service.emissordata.service import EmissorDataService
 from cltl_service.emotion_extraction.service import EmotionExtractionService
+from cltl_service.emotion_responder.service import EmotionResponderService
 from cltl_service.entity_linking.service import DisambiguationService
+from cltl_service.face_emotion_extraction.service import FaceEmotionExtractionService
 from cltl_service.face_recognition.service import FaceRecognitionService
 from cltl_service.g2ky.service import GetToKnowYouService
 from cltl_service.intentions.init import InitService
@@ -78,17 +89,11 @@ from cltl_service.reply_generation.service import ReplyGenerationService
 from cltl_service.triple_extraction.service import TripleExtractionService
 from cltl_service.vad.service import VadService
 from cltl_service.vector_id.service import VectorIdService
+from cltl_service.visualresponder.service import VisualResponderService
 from emissor.representation.util import serializer as emissor_serializer
 from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
-
-from cltl.about.about import AboutImpl
-from cltl.about.api import About
-from cltl.visualresponder.api import VisualResponder
-from cltl.visualresponder.visualresponder import VisualResponderImpl
-from cltl_service.about.service import AboutService
-from cltl_service.visualresponder.service import VisualResponderService
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
@@ -555,17 +560,46 @@ class EmotionRecognitionContainer(InfraContainer):
 
     @property
     @singleton
+    def face_emotion_extractor(self) -> FaceEmotionExtractor:
+        config = self.config_manager.get_config("cltl.face_emotion_recognition.context")
+
+        return ContextFaceEmotionExtractor(config.get("model_context"),
+                                           config.get("model_body"),
+                                           config.get("model_emotic"),
+                                           config.get("value_thresholds"))
+
+    @property
+    @singleton
+    def emotion_responder(self) -> EmotionResponder:
+        return EmotionResponderImpl()
+
+    @property
+    @singleton
     def emotion_recognition_service(self) -> EmotionExtractionService:
         return EmotionExtractionService.from_config(self.emotion_extractor, self.event_bus,
                                                     self.resource_manager, self.config_manager)
+
+    @property
+    @singleton
+    def face_emotion_recognition_service(self) -> FaceEmotionExtractionService:
+        return FaceEmotionExtractionService.from_config(self.face_emotion_extractor, self.event_bus,
+                                                        self.resource_manager, self.config_manager)
+
+    @property
+    @singleton
+    def emotion_responder_service(self) -> EmotionResponderService:
+        return EmotionResponderService.from_config(self.emotion_responder, self.event_bus,
+                                                   self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start Emotion Recognition")
         super().start()
         self.emotion_recognition_service.start()
+        self.face_emotion_recognition_service.start()
 
     def stop(self):
         logger.info("Stop Emotion Recognition")
+        self.face_emotion_recognition_service.stop()
         self.emotion_recognition_service.stop()
         super().stop()
 

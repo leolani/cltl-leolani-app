@@ -79,6 +79,7 @@ def add_print_handlers(event_bus):
     event_bus.subscribe("cltl.topic.text_out_replier", print_text_event)
     event_bus.subscribe("cltl.topic.triple_extraction", print_event)
     event_bus.subscribe("cltl.topic.brain_response", print_event)
+    event_bus.subscribe("cltl.topic.emotion", print_event)
 
     [event_bus.subscribe(topic, event_stats) for topic in event_bus.topics]
 
