@@ -46,11 +46,18 @@ nltk.lock:
 	touch nltk.lock
 
 
+py-app/resources/face_models/models.lock:
+	mkdir -p py-app/resources/face_models
+	wget -qO- https://surfdrive.surf.nl/files/index.php/s/Qx80CsSNJUgebUg/download | tar xvz -C py-app/resources/face_models
+	touch py-app/resources/face_models/models.lock
+
+
 .PHONY: build
-build: venv nltk.lock spacy.lock
+build: venv nltk.lock spacy.lock py-app/resources/face_models/models.lock
 
 
 .PHONY: clean
 clean:
 	rm -rf venv dist
+	rm -rf py-app/resources/face_models
 	rm -f spacy.lock nltk.lock
