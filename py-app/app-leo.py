@@ -24,6 +24,7 @@ from app import (BackendContainer,
                  TripleExtractionContainer,
                  BrainContainer,
                  DisambiguationContainer,
+                 DialogueActClassficationContainer,
                  ReplierContainer,
                  ObjectRecognitionContainer,
                  FaceRecognitionContainer,
@@ -42,7 +43,7 @@ from app import (BackendContainer,
 class ApplicationContainer(ChatUIContainer, G2KYContainer, LeolaniContainer,
                            AboutAgentContainer, VisualResponderContainer,
                            TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
-                           NLPContainer, MentionExtractionContainer,
+                           NLPContainer, MentionExtractionContainer, DialogueActClassficationContainer,
                            FaceRecognitionContainer, VectorIdContainer,
                            ObjectRecognitionContainer, EmotionRecognitionContainer,
                            ASRContainer, VADContainer,
@@ -80,6 +81,7 @@ def add_print_handlers(event_bus):
     event_bus.subscribe("cltl.topic.triple_extraction", print_event)
     event_bus.subscribe("cltl.topic.brain_response", print_event)
     event_bus.subscribe("cltl.topic.emotion", print_event)
+    event_bus.subscribe("cltl.topic.dialogue_act", print_event)
 
     [event_bus.subscribe(topic, event_stats) for topic in event_bus.topics]
 

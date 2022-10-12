@@ -5,6 +5,7 @@ import os
 import pathlib
 import random
 from datetime import datetime
+from typing import List
 
 import cltl.leolani.gestures as gestures
 import requests
@@ -94,6 +95,9 @@ from emissor.representation.util import serializer as emissor_serializer
 from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
+
+from cltl.dialogue_act_classification.api import DialogueAct, DialogueActClassifier
+from cltl_service.dialogue_act_classification.service import DialogueActClassificationService
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
@@ -424,6 +428,39 @@ class DisambiguationContainer(BrainContainer, InfraContainer):
     def stop(self):
         logger.info("Stop Disambigution Service")
         self.disambiguation_service.stop()
+        super().stop()
+
+
+class DialogueActClassficationContainer(InfraContainer):
+    @property
+    @singleton
+    def dialogue_act_classifier(self) -> DialogueActClassifier:
+        config = self.config_manager.get_config("cltl.dialogue_act_classification")
+        implementations = config.get("implementation")
+
+        if "dummy" in implementations:
+            class DummyClassifier(DialogueActClassifier):
+                def _extract_dialogue_act(self, utterance: str) -> List[DialogueAct]:
+                    return [DialogueAct("dummy", utterance[:10], 1.0)]
+
+            return DummyClassifier()
+        else:
+            raise ValueError("Unsupported DialogueClassifier implementation: " + implementations)
+
+    @property
+    @singleton
+    def dialogue_act_classification_service(self) -> DialogueActClassificationService:
+        return DialogueActClassificationService.from_config(self.dialogue_act_classifier,
+                                                 self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start Dialogue Act Classification Service")
+        super().start()
+        self.dialogue_act_classification_service.start()
+
+    def stop(self):
+        logger.info("Stop Dialogue Act Classification Service")
+        self.dialogue_act_classification_service.stop()
         super().stop()
 
 
@@ -836,7 +873,7 @@ class G2KYContainer(LeolaniContainer, EmissorStorageContainer, InfraContainer):
 class ApplicationContainer(ChatUIContainer, G2KYContainer, LeolaniContainer,
                            AboutAgentContainer, VisualResponderContainer,
                            TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
-                           NLPContainer, MentionExtractionContainer,
+                           NLPContainer, MentionExtractionContainer, DialogueActClassficationContainer,
                            FaceRecognitionContainer, VectorIdContainer,
                            ObjectRecognitionContainer, EmotionRecognitionContainer,
                            ASRContainer, VADContainer,
