@@ -48,16 +48,25 @@ nltk.lock:
 
 py-app/resources/face_models/models.lock:
 	mkdir -p py-app/resources/face_models
-	wget -qO- https://surfdrive.surf.nl/files/index.php/s/Qx80CsSNJUgebUg/download | tar xvz -C py-app/resources/face_models
+	wget -qO- "https://surfdrive.surf.nl/files/index.php/s/Qx80CsSNJUgebUg/download" | tar xvz -C py-app/resources/face_models
 	touch py-app/resources/face_models/models.lock
 
 
+py-app/resources/midas-da-roberta/classifier.pt:
+	mkdir -p py-app/resources/midas-da-roberta
+	wget -O py-app/resources/midas-da-roberta/classifier.pt "https://drive.google.com/u/0/uc?id=1-33rHc9O2fM-PPaXu8I_oK5xnFwuMlN7&export=download&confirm=9iBg"
+
+
 .PHONY: build
-build: venv nltk.lock spacy.lock py-app/resources/face_models/models.lock
+build: venv \
+    nltk.lock spacy.lock \
+    py-app/resources/face_models/models.lock \
+    py-app/resources/midas-da-roberta/classifier.pt
 
 
 .PHONY: clean
 clean:
 	rm -rf venv dist
-	rm -rf py-app/resources/face_models
 	rm -f spacy.lock nltk.lock
+	rm -rf py-app/resources/face_models
+	rm -rf py-app/resources/midas-da-roberta/classifier.pt

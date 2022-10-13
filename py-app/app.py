@@ -36,6 +36,8 @@ from cltl.combot.infra.di_container import singleton
 from cltl.combot.infra.event import Event
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
+from cltl.dialogue_act_classification.midas_classifier import MidasDialogTagger
+from cltl.dialogue_act_classification.silicone_classifier import SiliconeDialogueActClassifier
 from cltl.emissordata.api import EmissorDataStorage
 from cltl.emissordata.file_storage import EmissorDataFileStorage
 from cltl.emotion_extraction.api import EmotionExtractor
@@ -436,16 +438,15 @@ class DialogueActClassficationContainer(InfraContainer):
     @singleton
     def dialogue_act_classifier(self) -> DialogueActClassifier:
         config = self.config_manager.get_config("cltl.dialogue_act_classification")
-        implementations = config.get("implementation")
+        implementation = config.get("implementation")
 
-        if "dummy" in implementations:
-            class DummyClassifier(DialogueActClassifier):
-                def _extract_dialogue_act(self, utterance: str) -> List[DialogueAct]:
-                    return [DialogueAct("dummy", utterance[:10], 1.0)]
-
-            return DummyClassifier()
+        if implementation == "midas":
+            config = self.config_manager.get_config("cltl.dialogue_act_classification.midas")
+            return MidasDialogTagger(config.get("model"))
+        elif implementation == "silicone":
+            return SiliconeDialogueActClassifier()
         else:
-            raise ValueError("Unsupported DialogueClassifier implementation: " + implementations)
+            raise ValueError("Unsupported DialogueClassifier implementation: " + implementation)
 
     @property
     @singleton
