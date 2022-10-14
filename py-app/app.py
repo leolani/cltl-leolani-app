@@ -229,8 +229,7 @@ class EmissorStorageContainer(InfraContainer):
     @property
     @singleton
     def emissor_storage(self) -> EmissorDataStorage:
-        config = self.config_manager.get_config("cltl.emissor-data")
-        return EmissorDataFileStorage(config.get("path"))
+        return EmissorDataFileStorage.from_config(self.config_manager)
 
     @property
     @singleton
