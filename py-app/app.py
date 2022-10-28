@@ -5,7 +5,6 @@ import os
 import pathlib
 import random
 from datetime import datetime
-from typing import List
 
 import cltl.leolani.gestures as gestures
 import requests
@@ -36,8 +35,6 @@ from cltl.combot.infra.di_container import singleton
 from cltl.combot.infra.event import Event
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
-from cltl.dialogue_act_classification.midas_classifier import MidasDialogTagger
-from cltl.dialogue_act_classification.silicone_classifier import SiliconeDialogueActClassifier
 from cltl.emissordata.api import EmissorDataStorage
 from cltl.emissordata.file_storage import EmissorDataFileStorage
 from cltl.emotion_extraction.api import EmotionExtractor
@@ -53,11 +50,11 @@ from cltl.friends.api import FriendStore
 from cltl.friends.brain import BrainFriendsStore
 from cltl.friends.memory import MemoryFriendsStore
 from cltl.g2ky.api import GetToKnowYou
-from cltl.g2ky.visual import VisualGetToKnowYou
 from cltl.g2ky.verbal import VerbalGetToKnowYou
+from cltl.g2ky.visual import VisualGetToKnowYou
 from cltl.mention_extraction.api import MentionExtractor
 from cltl.mention_extraction.default_extractor import DefaultMentionExtractor, TextMentionDetector, \
-    NewFaceMentionDetector, ObjectMentionDetector
+    NewFaceMentionDetector, ObjectMentionDetector, TextPerspectiveDetector, ImagePerspectiveDetector
 from cltl.nlp.api import NLP
 from cltl.nlp.spacy_nlp import SpacyNLP
 from cltl.object_recognition.api import ObjectDetector
@@ -99,7 +96,9 @@ from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
 
-from cltl.dialogue_act_classification.api import DialogueAct, DialogueActClassifier
+from cltl.dialogue_act_classification.api import DialogueActClassifier
+from cltl.dialogue_act_classification.midas_classifier import MidasDialogTagger
+from cltl.dialogue_act_classification.silicone_classifier import SiliconeDialogueActClassifier
 from cltl_service.dialogue_act_classification.service import DialogueActClassificationService
 
 logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
@@ -753,8 +752,11 @@ class MentionExtractionContainer(InfraContainer):
         text_detector = TextMentionDetector()
         face_detector = NewFaceMentionDetector()
         object_detector = ObjectMentionDetector()
+        text_perspective_detector = TextPerspectiveDetector()
+        image_perspective_detector = ImagePerspectiveDetector()
 
-        return DefaultMentionExtractor(text_detector, face_detector, object_detector)
+        return DefaultMentionExtractor(text_detector, text_perspective_detector, image_perspective_detector,
+                                       face_detector, object_detector)
 
     @property
     @singleton
