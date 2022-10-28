@@ -257,7 +257,12 @@ class VADContainer(InfraContainer):
     @property
     @singleton
     def vad_service(self) -> VadService:
-        config = self.config_manager.get_config("cltl.vad.webrtc")
+        try:
+            config = self.config_manager.get_config("cltl.vad.webrtc")
+        except ValueError:
+            logger.warning("No VAD configured (add config section cltl.vad.webrtc")
+            return False
+
         activity_window = config.get_int("activity_window")
         activity_threshold = config.get_float("activity_threshold")
         allow_gap = config.get_int("allow_gap")
@@ -271,13 +276,15 @@ class VADContainer(InfraContainer):
         return VadService.from_config(vad, self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
-        logger.info("Start VAD")
         super().start()
-        self.vad_service.start()
+        if self.vad_service:
+            logger.info("Start VAD")
+            self.vad_service.start()
 
     def stop(self):
-        logger.info("Stop VAD")
-        self.vad_service.stop()
+        if self.vad_service:
+            logger.info("Stop VAD")
+            self.vad_service.stop()
         super().stop()
 
 
@@ -308,20 +315,28 @@ class ASRContainer(EmissorStorageContainer, InfraContainer):
             impl_config = self.config_manager.get_config("cltl.asr.wav2vec")
             model = impl_config.get("model")
             asr = Wav2Vec2ASR(model, sampling_rate=sampling_rate, storage=storage)
+        elif not implementation:
+            asr = False
         else:
             raise ValueError("Unsupported implementation " + implementation)
 
-        return AsrService.from_config(asr, self.emissor_data_client,
-                                      self.event_bus, self.resource_manager, self.config_manager)
+        if asr:
+            return AsrService.from_config(asr, self.emissor_data_client,
+                                          self.event_bus, self.resource_manager, self.config_manager)
+        else:
+            logger.warning("No ASR implementation configured")
+            return False
 
     def start(self):
-        logger.info("Start ASR")
         super().start()
-        self.asr_service.start()
+        if self.asr_service:
+            logger.info("Start ASR")
+            self.asr_service.start()
 
     def stop(self):
-        logger.info("Stop ASR")
-        self.asr_service.stop()
+        if self.asr_service:
+            logger.info("Stop ASR")
+            self.asr_service.stop()
         super().stop()
 
 
@@ -444,23 +459,32 @@ class DialogueActClassficationContainer(InfraContainer):
             return MidasDialogTagger(config.get("model"))
         elif implementation == "silicone":
             return SiliconeDialogueActClassifier()
+        elif not implementation:
+            logger.warning("No DialogueClassifier implementation configured")
+            return False
         else:
             raise ValueError("Unsupported DialogueClassifier implementation: " + implementation)
 
     @property
     @singleton
     def dialogue_act_classification_service(self) -> DialogueActClassificationService:
-        return DialogueActClassificationService.from_config(self.dialogue_act_classifier,
-                                                 self.event_bus, self.resource_manager, self.config_manager)
+        if self.dialogue_act_classifier:
+            return DialogueActClassificationService.from_config(self.dialogue_act_classifier,
+                                                                self.event_bus, self.resource_manager,
+                                                                self.config_manager)
+        else:
+            return False
 
     def start(self):
-        logger.info("Start Dialogue Act Classification Service")
         super().start()
-        self.dialogue_act_classification_service.start()
+        if self.dialogue_act_classification_service:
+            logger.info("Start Dialogue Act Classification Service")
+            self.dialogue_act_classification_service.start()
 
     def stop(self):
-        logger.info("Stop Dialogue Act Classification Service")
-        self.dialogue_act_classification_service.stop()
+        if self.dialogue_act_classification_service:
+            logger.info("Stop Dialogue Act Classification Service")
+            self.dialogue_act_classification_service.stop()
         super().stop()
 
 
@@ -590,6 +614,9 @@ class EmotionRecognitionContainer(InfraContainer):
             detector = GoEmotionDetector(config.get("model"))
         elif implementation == "Vader":
             detector = VaderSentimentDetector()
+        elif not implementation:
+            logger.warning("No EmotionExtractor implementation configured")
+            detector = False
         else:
             raise ValueError("Unknown emotion extractor implementation: " + implementation)
 
@@ -598,7 +625,11 @@ class EmotionRecognitionContainer(InfraContainer):
     @property
     @singleton
     def face_emotion_extractor(self) -> FaceEmotionExtractor:
-        config = self.config_manager.get_config("cltl.face_emotion_recognition.context")
+        try:
+            config = self.config_manager.get_config("cltl.face_emotion_recognition.context")
+        except ValueError:
+            logger.warning("No FaceEmotionExtractor configured (add config section cltl.face_emotion_recognition.context")
+            return False
 
         return ContextFaceEmotionExtractor(config.get("model_context"),
                                            config.get("model_body"),
@@ -613,14 +644,20 @@ class EmotionRecognitionContainer(InfraContainer):
     @property
     @singleton
     def emotion_recognition_service(self) -> EmotionExtractionService:
-        return EmotionExtractionService.from_config(self.emotion_extractor, self.event_bus,
-                                                    self.resource_manager, self.config_manager)
+        if self.emotion_extractor:
+            return EmotionExtractionService.from_config(self.emotion_extractor, self.event_bus,
+                                                        self.resource_manager, self.config_manager)
+        else:
+            return False
 
     @property
     @singleton
     def face_emotion_recognition_service(self) -> FaceEmotionExtractionService:
-        return FaceEmotionExtractionService.from_config(self.face_emotion_extractor, self.event_bus,
-                                                        self.resource_manager, self.config_manager)
+        if self.face_emotion_extractor:
+            return FaceEmotionExtractionService.from_config(self.face_emotion_extractor, self.event_bus,
+                                                            self.resource_manager, self.config_manager)
+        else:
+            return False
 
     @property
     @singleton
@@ -629,15 +666,21 @@ class EmotionRecognitionContainer(InfraContainer):
                                                    self.resource_manager, self.config_manager)
 
     def start(self):
-        logger.info("Start Emotion Recognition")
         super().start()
-        self.emotion_recognition_service.start()
-        self.face_emotion_recognition_service.start()
+        if self.emotion_recognition_service:
+            logger.info("Start Emotion Recognition service")
+            self.emotion_recognition_service.start()
+        if self.face_emotion_recognition_service:
+            logger.info("Start Face Emotion Recognition service")
+            self.face_emotion_recognition_service.start()
 
     def stop(self):
-        logger.info("Stop Emotion Recognition")
-        self.face_emotion_recognition_service.stop()
-        self.emotion_recognition_service.stop()
+        if self.face_emotion_recognition_service:
+            logger.info("Stop Face Emotion Recognition service")
+            self.face_emotion_recognition_service.stop()
+        if self.emotion_recognition_service:
+            logger.info("Stop Emotion Recognition service")
+            self.emotion_recognition_service.stop()
         super().stop()
 
 
