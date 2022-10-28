@@ -53,7 +53,8 @@ from cltl.friends.api import FriendStore
 from cltl.friends.brain import BrainFriendsStore
 from cltl.friends.memory import MemoryFriendsStore
 from cltl.g2ky.api import GetToKnowYou
-from cltl.g2ky.memory import MemoryGetToKnowYou
+from cltl.g2ky.visual import VisualGetToKnowYou
+from cltl.g2ky.verbal import VerbalGetToKnowYou
 from cltl.mention_extraction.api import MentionExtractor
 from cltl.mention_extraction.default_extractor import DefaultMentionExtractor, TextMentionDetector, \
     NewFaceMentionDetector, ObjectMentionDetector
@@ -257,12 +258,16 @@ class VADContainer(InfraContainer):
     @property
     @singleton
     def vad_service(self) -> VadService:
-        try:
-            config = self.config_manager.get_config("cltl.vad.webrtc")
-        except ValueError:
-            logger.warning("No VAD configured (add config section cltl.vad.webrtc")
-            return False
+        config = self.config_manager.get_config("cltl.vad")
 
+        implementation = config.get("implementation")
+        if not implementation:
+            logger.warning("No VAD configured")
+            return False
+        if implementation != "webrtc":
+            raise ValueError("Unsupported VAD implementation: " + implementation)
+
+        config = self.config_manager.get_config("cltl.vad.webrtc")
         activity_window = config.get_int("activity_window")
         activity_threshold = config.get_float("activity_threshold")
         allow_gap = config.get_int("allow_gap")
@@ -527,6 +532,15 @@ class ObjectRecognitionContainer(InfraContainer):
     @singleton
     def object_detector(self) -> ObjectDetector:
         config = self.config_manager.get_config("cltl.object_recognition")
+
+        implementation = config.get("implementation")
+        if not implementation:
+            logger.warning("No ObjectDetector configured")
+            return False
+        if implementation != "proxy":
+            raise ValueError("Unknown FaceEmotionExtractor implementation: " + implementation)
+
+        config = self.config_manager.get_config("cltl.object_recognition.proxy")
         start_infra = config.get_boolean("start_infra")
         detector_url = config.get("detector_url") if "detector_url" in config else None
 
@@ -535,17 +549,22 @@ class ObjectRecognitionContainer(InfraContainer):
     @property
     @singleton
     def object_recognition_service(self) -> FaceRecognitionService:
-        return ObjectRecognitionService.from_config(self.object_detector, self.event_bus,
-                                                    self.resource_manager, self.config_manager)
+        if self.object_detector:
+            return ObjectRecognitionService.from_config(self.object_detector, self.event_bus,
+                                                        self.resource_manager, self.config_manager)
+        else:
+            return False
 
     def start(self):
-        logger.info("Start Object Recognition")
         super().start()
-        self.object_recognition_service.start()
+        if self.object_recognition_service:
+            logger.info("Start Object Recognition")
+            self.object_recognition_service.start()
 
     def stop(self):
-        logger.info("Stop Object Recognition")
-        self.object_recognition_service.stop()
+        if self.object_recognition_service:
+            logger.info("Stop Object Recognition")
+            self.object_recognition_service.stop()
         super().stop()
 
 
@@ -554,6 +573,15 @@ class FaceRecognitionContainer(InfraContainer):
     @singleton
     def face_detector(self) -> FaceDetector:
         config = self.config_manager.get_config("cltl.face_recognition")
+
+        implementation = config.get("implementation")
+        if not implementation:
+            logger.warning("No FaceDetector configured")
+            return False
+        if implementation != "proxy":
+            raise ValueError("Unknown FaceEmotionExtractor implementation: " + implementation)
+
+        config = self.config_manager.get_config("cltl.face_recognition.proxy")
         start_infra = config.get_boolean("start_infra")
         detector_url = config.get("detector_url") if "detector_url" in config else None
         age_gender_url = config.get("age_gender_url") if "age_gender_url" in config else None
@@ -563,17 +591,22 @@ class FaceRecognitionContainer(InfraContainer):
     @property
     @singleton
     def face_recognition_service(self) -> FaceRecognitionService:
-        return FaceRecognitionService.from_config(self.face_detector, self.event_bus,
-                                                  self.resource_manager, self.config_manager)
+        if self.face_detector:
+            return FaceRecognitionService.from_config(self.face_detector, self.event_bus,
+                                                      self.resource_manager, self.config_manager)
+        else:
+            return False
 
     def start(self):
-        logger.info("Start Face Recognition")
         super().start()
-        self.face_recognition_service.start()
+        if self.face_recognition_service:
+            logger.info("Start Face Recognition")
+            self.face_recognition_service.start()
 
     def stop(self):
-        logger.info("Stop Face Recognition")
-        self.face_recognition_service.stop()
+        if self.face_recognition_service:
+            logger.info("Stop Face Recognition")
+            self.face_recognition_service.stop()
         super().stop()
 
 
@@ -625,11 +658,16 @@ class EmotionRecognitionContainer(InfraContainer):
     @property
     @singleton
     def face_emotion_extractor(self) -> FaceEmotionExtractor:
-        try:
-            config = self.config_manager.get_config("cltl.face_emotion_recognition.context")
-        except ValueError:
-            logger.warning("No FaceEmotionExtractor configured (add config section cltl.face_emotion_recognition.context")
+        config = self.config_manager.get_config("cltl.face_emotion_recognition")
+
+        implementation = config.get("implementation")
+        if not implementation:
+            logger.warning("No FaceEmotionExtractor configured")
             return False
+        if implementation != "emotic":
+            raise ValueError("Unknown FaceEmotionExtractor implementation: " + implementation)
+
+        config = self.config_manager.get_config("cltl.face_emotion_recognition.emotic")
 
         return ContextFaceEmotionExtractor(config.get("model_context"),
                                            config.get("model_body"),
@@ -887,14 +925,22 @@ class G2KYContainer(LeolaniContainer, EmissorStorageContainer, InfraContainer):
     @singleton
     def g2ky(self) -> GetToKnowYou:
         config = self.config_manager.get_config("cltl.g2ky")
-        get_friends = self.friend_store.get_friends()
-        friends = {face_id: names[1][0]
-                   for face_id, names in get_friends.items()
-                   if names[1]}
+        implementation = config.get("implementation")
+        if implementation == "visual":
+            config = self.config_manager.get_config("cltl.g2ky.visual")
 
-        logger.info("Initialized G2KY with %s friends", len(friends))
+            get_friends = self.friend_store.get_friends()
+            friends = {face_id: names[1][0]
+                       for face_id, names in get_friends.items()
+                       if names[1]}
 
-        return MemoryGetToKnowYou(gaze_images=config.get_int("gaze_images"), friends=friends)
+            logger.info("Initialized G2KY with %s friends", len(friends))
+
+            return VisualGetToKnowYou(gaze_images=config.get_int("gaze_images"), friends=friends)
+        elif implementation == "verbal":
+            return VerbalGetToKnowYou()
+        else:
+            raise ValueError("Unknown G2KY implementation: " + implementation)
 
     @property
     @singleton
