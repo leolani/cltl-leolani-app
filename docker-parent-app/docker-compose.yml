@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   leolani:
-    image: "numblr/leolani:0.0.1dev"
+    image: "numblr/leolani:chatonly"
     ports:
       - "8000:8000"
     volumes:

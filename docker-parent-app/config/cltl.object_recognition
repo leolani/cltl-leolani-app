@@ -1,3 +1,1 @@
 implementation: proxy
-start_infra: False
-detector_url: http://object-recognition:10004/
