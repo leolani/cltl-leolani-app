@@ -907,7 +907,7 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
 
     @property
     @singleton
-    def chat_intention(self) -> InitService:
+    def chat_intention(self) -> InitializeChatService:
         return InitializeChatService.from_config(self.emissor_data_client,
                                        self.event_bus, self.resource_manager, self.config_manager)
 
