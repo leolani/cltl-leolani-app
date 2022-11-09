@@ -1,0 +1,3 @@
+topics: cltl.topic.scenario,
+        cltl.topic.text_in, cltl.topic.text_out, cltl.topic.text_out_replier,
+        cltl.topic.face_id, cltl.topic.speaker
