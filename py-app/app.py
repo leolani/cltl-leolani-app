@@ -80,6 +80,7 @@ from cltl_service.entity_linking.service import DisambiguationService
 from cltl_service.face_emotion_extraction.service import FaceEmotionExtractionService
 from cltl_service.face_recognition.service import FaceRecognitionService
 from cltl_service.g2ky.service import GetToKnowYouService
+from cltl_service.intentions.chat import InitializeChatService
 from cltl_service.intentions.init import InitService
 from cltl_service.keyword.service import KeywordService
 from cltl_service.mention_extraction.service import MentionExtractionService
@@ -904,12 +905,19 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
         return InitService.from_config(self.emissor_data_client,
                                        self.event_bus, self.resource_manager, self.config_manager)
 
+    @property
+    @singleton
+    def chat_intention(self) -> InitService:
+        return InitializeChatService.from_config(self.emissor_data_client,
+                                       self.event_bus, self.resource_manager, self.config_manager)
+
     def start(self):
         logger.info("Start Leolani services")
         super().start()
         self.bdi_service.start()
         self.context_service.start()
         self.init_intention.start()
+        self.chat_intention.start()
         self.keyword_service.start()
         self.monitoring_service.start()
 
@@ -918,6 +926,7 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
         self.monitoring_service.stop()
         self.keyword_service.stop()
         self.init_intention.stop()
+        self.chat_intention.stop()
         self.bdi_service.stop()
         self.context_service.stop()
         super().stop()
