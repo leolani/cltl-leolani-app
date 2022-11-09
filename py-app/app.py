@@ -427,8 +427,9 @@ class DisambiguationContainer(BrainContainer, InfraContainer):
                                        log_dir=pathlib.Path(brain_log_dir))
             linkers.append(linker)
         if "PronounLinker" in implementations:
-            from cltl.reply_generation.rl_replier import PronounLinker
             # TODO This is OK here, we need to see how this will work in a containerized setting
+            # from cltl.reply_generation.rl_replier import PronounLinker
+            from cltl.entity_linking.linkers import PronounLinker
             linker = PronounLinker(address=brain_address,
                                    log_dir=pathlib.Path(brain_log_dir))
             linkers.append(linker)
