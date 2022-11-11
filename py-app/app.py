@@ -30,7 +30,7 @@ from cltl.brain.long_term_memory import LongTermMemory
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
 from cltl.combot.event.bdi import IntentionEvent
-from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
+from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer, K8_CONFIG_DIR
 from cltl.combot.infra.di_container import singleton
 from cltl.combot.infra.event import Event
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
@@ -102,7 +102,12 @@ from cltl.dialogue_act_classification.midas_classifier import MidasDialogTagger
 from cltl.dialogue_act_classification.silicone_classifier import SiliconeDialogueActClassifier
 from cltl_service.dialogue_act_classification.service import DialogueActClassificationService
 
-logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
+
+k8_logging_config = os.path.join(K8_CONFIG_DIR, 'logging.config')
+if os.path.exists(k8_logging_config):
+    logging.config.fileConfig(k8_logging_config, disable_existing_loggers=False)
+else:
+    logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
 
 
