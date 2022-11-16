@@ -103,11 +103,8 @@ from cltl.dialogue_act_classification.silicone_classifier import SiliconeDialogu
 from cltl_service.dialogue_act_classification.service import DialogueActClassificationService
 
 
-k8_logging_config = os.path.join(K8_CONFIG_DIR, 'logging.config')
-if os.path.exists(k8_logging_config):
-    logging.config.fileConfig(k8_logging_config, disable_existing_loggers=False)
-else:
-    logging.config.fileConfig('config/logging.config', disable_existing_loggers=False)
+logging.config.fileConfig(os.environ.get('CLTL_LOGGING_CONFIG', default='config/logging.config'),
+                          disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
 
 
