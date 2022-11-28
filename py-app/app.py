@@ -80,6 +80,7 @@ from cltl_service.entity_linking.service import DisambiguationService
 from cltl_service.face_emotion_extraction.service import FaceEmotionExtractionService
 from cltl_service.face_recognition.service import FaceRecognitionService
 from cltl_service.g2ky.service import GetToKnowYouService
+from cltl_service.idresolution.service import IdResolutionService
 from cltl_service.intentions.chat import InitializeChatService
 from cltl_service.intentions.init import InitService
 from cltl_service.keyword.service import KeywordService
@@ -736,7 +737,7 @@ class NLPContainer(InfraContainer):
     def nlp(self) -> NLP:
         config = self.config_manager.get_config("cltl.nlp.spacy")
 
-        return SpacyNLP(config.get('model'))
+        return SpacyNLP(config.get('model'), config.get('entity_relations', multi=True))
 
     @property
     @singleton
@@ -872,6 +873,16 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
 
     @property
     @singleton
+    def id_resolution_service(self) -> MonitoringService:
+        if self.config_manager.get_config("cltl.leolani.idresolution").get_boolean("active"):
+            logger.info("Run with active IdResolutionService")
+            return IdResolutionService.from_config(self.friend_store, self.emissor_data_client,
+                                                   self.event_bus, self.resource_manager, self.config_manager)
+
+        return []
+
+    @property
+    @singleton
     def monitoring_service(self) -> MonitoringService:
         return MonitoringService.from_config(self.friend_store, self.event_bus, self.resource_manager, self.config_manager)
 
@@ -927,6 +938,8 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
         self.chat_intention.start()
         self.keyword_service.start()
         self.monitoring_service.start()
+        if self.id_resolution_service:
+            self.id_resolution_service.start()
 
     def stop(self):
         logger.info("Stop Leolani services")
@@ -936,6 +949,8 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
         self.chat_intention.stop()
         self.bdi_service.stop()
         self.context_service.stop()
+        if self.id_resolution_service:
+            self.id_resolution_service.stop()
         super().stop()
 
 
