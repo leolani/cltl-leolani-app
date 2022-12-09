@@ -1,0 +1,1 @@
+# Make resources available in unit tests
