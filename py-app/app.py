@@ -364,6 +364,10 @@ class TripleExtractionContainer(InfraContainer):
         elif implementation == "spacyAnalyzer":
             from cltl.triple_extraction.spacy_analyzer import spacyAnalyzer
             analyzer = spacyAnalyzer()
+        elif implementation == "conversational":
+            from cltl.triple_extraction.conversational_analyzer import ConversationalAnalyzer
+            config = self.config_manager.get_config('cltl.triple_extraction.conversational')
+            analyzer = ConversationalAnalyzer(config.get('model_path'))
         else:
             raise ValueError("Unsupported implementation " + implementation)
 
