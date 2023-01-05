@@ -36,12 +36,12 @@ include util/make/makefile.git.mk
 include makefile.helm.mk
 
 
-spacy.lock:
+spacy.lock: venv
 	source venv/bin/activate; python -m spacy download en
 	touch spacy.lock
 
 
-nltk.lock:
+nltk.lock: venv
 	source venv/bin/activate; python -m nltk.downloader -d ~/nltk_data all
 	touch nltk.lock
 
@@ -57,16 +57,24 @@ py-app/resources/midas-da-roberta/classifier.pt:
 	wget -O py-app/resources/midas-da-roberta/classifier.pt "https://drive.google.com/u/0/uc?id=1-33rHc9O2fM-PPaXu8I_oK5xnFwuMlN7&export=download&confirm=9iBg"
 
 
+py-app/resources/conversational_triples/models.lock:
+	mkdir -p py-app/resources/conversational_triples
+	wget -qO- "https://vu.data.surfsara.nl/index.php/s/WpL1vFChlQpkbqW/download" \
+        | tar xvz -C py-app/resources/conversational_triples --strip-components=1
+	touch py-app/resources/conversational_triples/models.lock
+
+
 .PHONY: build
 build: venv \
     nltk.lock spacy.lock \
     py-app/resources/face_models/models.lock \
-    py-app/resources/midas-da-roberta/classifier.pt
+    py-app/resources/midas-da-roberta/classifier.pt \
+    py-app/resources/conversational_triples/models.lock
 
 
 .PHONY: clean
-clean:
-	rm -rf venv dist
+clean: py-clean base-clean
 	rm -f spacy.lock nltk.lock
 	rm -rf py-app/resources/face_models
 	rm -rf py-app/resources/midas-da-roberta/classifier.pt
+	rm -rf py-app/resources/conversational_triples
