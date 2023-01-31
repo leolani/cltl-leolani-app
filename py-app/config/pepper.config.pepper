@@ -1,0 +1,14 @@
+[cltl.object_recognition]
+implementation:
+
+[cltl.triple_extraction]
+implementation: conversational
+
+
+[cltl.backend]
+run_server: False
+server_image_url: http://192.168.1.176:8000
+server_audio_url: http://192.168.1.176:8000
+
+[cltl.backend.text_output]
+# remote_url: http://192.168.1.176:8000

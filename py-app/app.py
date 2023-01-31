@@ -1,10 +1,8 @@
-import contextlib
-import json
+import logging.config
 import logging.config
 import os
 import pathlib
 import random
-from datetime import datetime
 
 import cltl.leolani.gestures as gestures
 import requests
@@ -30,10 +28,11 @@ from cltl.brain.long_term_memory import LongTermMemory
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
 from cltl.combot.event.bdi import IntentionEvent
-from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer, K8_CONFIG_DIR
+from cltl.combot.infra.config.k8config import K8LocalConfigurationContainer
 from cltl.combot.infra.di_container import singleton
 from cltl.combot.infra.event import Event
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
+from cltl.combot.infra.event_log import LogWriter
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
 from cltl.emissordata.api import EmissorDataStorage
 from cltl.emissordata.file_storage import EmissorDataFileStorage
@@ -71,6 +70,7 @@ from cltl_service.backend.storage import StorageService
 from cltl_service.bdi.service import BDIService
 from cltl_service.brain.service import BrainService
 from cltl_service.chatui.service import ChatUiService
+from cltl_service.combot.event_log.service import EventLogService
 from cltl_service.context.service import ContextService
 from cltl_service.emissordata.client import EmissorDataClient
 from cltl_service.emissordata.service import EmissorDataService
@@ -103,18 +103,13 @@ from cltl.dialogue_act_classification.midas_classifier import MidasDialogTagger
 from cltl.dialogue_act_classification.silicone_classifier import SiliconeDialogueActClassifier
 from cltl_service.dialogue_act_classification.service import DialogueActClassificationService
 
-
 logging.config.fileConfig(os.environ.get('CLTL_LOGGING_CONFIG', default='config/logging.config'),
                           disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
 
 
 class InfraContainer(SynchronousEventBusContainer, K8LocalConfigurationContainer, ThreadedResourceContainer):
-    def start(self):
-        pass
-
-    def stop(self):
-        pass
+    pass
 
 
 class RemoteTextOutput(TextOutput):
@@ -221,12 +216,14 @@ class BackendContainer(InfraContainer):
         self.backend_service.start()
 
     def stop(self):
-        logger.info("Stop Backend")
-        self.storage_service.stop()
-        self.backend_service.stop()
-        if self.server:
-            self.server.stop()
-        super().stop()
+        try:
+            logger.info("Stop Backend")
+            self.storage_service.stop()
+            self.backend_service.stop()
+            if self.server:
+                self.server.stop()
+        finally:
+            super().stop()
 
 
 class EmissorStorageContainer(InfraContainer):
@@ -252,9 +249,12 @@ class EmissorStorageContainer(InfraContainer):
         self.emissor_data_service.start()
 
     def stop(self):
-        logger.info("Stop Emissor Data Storage")
-        self.emissor_data_service.stop()
-        super().stop()
+        try:
+            logger.info("Stop Emissor Data Storage")
+            self.emissor_data_service.stop()
+        finally:
+            super().stop()
+
 
 
 class VADContainer(InfraContainer):
@@ -290,10 +290,12 @@ class VADContainer(InfraContainer):
             self.vad_service.start()
 
     def stop(self):
-        if self.vad_service:
-            logger.info("Stop VAD")
-            self.vad_service.stop()
-        super().stop()
+        try:
+            if self.vad_service:
+                logger.info("Stop VAD")
+                self.vad_service.stop()
+        finally:
+            super().stop()
 
 
 class ASRContainer(EmissorStorageContainer, InfraContainer):
@@ -342,10 +344,12 @@ class ASRContainer(EmissorStorageContainer, InfraContainer):
             self.asr_service.start()
 
     def stop(self):
-        if self.asr_service:
-            logger.info("Stop ASR")
-            self.asr_service.stop()
-        super().stop()
+        try:
+            if self.asr_service:
+                logger.info("Stop ASR")
+                self.asr_service.stop()
+        finally:
+            super().stop()
 
 
 class TripleExtractionContainer(InfraContainer):
@@ -379,9 +383,11 @@ class TripleExtractionContainer(InfraContainer):
         self.triple_extraction_service.start()
 
     def stop(self):
-        logger.info("Stop Triple Extraction")
-        self.triple_extraction_service.stop()
-        super().stop()
+        try:
+            logger.info("Stop Triple Extraction")
+            self.triple_extraction_service.stop()
+        finally:
+            super().stop()
 
 
 class BrainContainer(InfraContainer):
@@ -409,9 +415,11 @@ class BrainContainer(InfraContainer):
         self.brain_service.start()
 
     def stop(self):
-        logger.info("Stop Brain")
-        self.brain_service.stop()
-        super().stop()
+        try:
+            logger.info("Stop Brain")
+            self.brain_service.stop()
+        finally:
+            super().stop()
 
 
 class DisambiguationContainer(BrainContainer, InfraContainer):
@@ -455,9 +463,11 @@ class DisambiguationContainer(BrainContainer, InfraContainer):
         self.disambiguation_service.start()
 
     def stop(self):
-        logger.info("Stop Disambigution Service")
-        self.disambiguation_service.stop()
-        super().stop()
+        try:
+            logger.info("Stop Disambigution Service")
+            self.disambiguation_service.stop()
+        finally:
+            super().stop()
 
 
 class DialogueActClassficationContainer(InfraContainer):
@@ -535,9 +545,11 @@ class ReplierContainer(BrainContainer, EmissorStorageContainer, InfraContainer):
         self.reply_service.start()
 
     def stop(self):
-        logger.info("Stop Repliers")
-        self.reply_service.stop()
-        super().stop()
+        try:
+            logger.info("Stop Repliers")
+            self.reply_service.stop()
+        finally:
+            super().stop()
 
 
 class ObjectRecognitionContainer(InfraContainer):
@@ -575,10 +587,12 @@ class ObjectRecognitionContainer(InfraContainer):
             self.object_recognition_service.start()
 
     def stop(self):
-        if self.object_recognition_service:
-            logger.info("Stop Object Recognition")
-            self.object_recognition_service.stop()
-        super().stop()
+        try:
+            if self.object_recognition_service:
+                logger.info("Stop Object Recognition")
+                self.object_recognition_service.stop()
+        finally:
+            super().stop()
 
 
 class FaceRecognitionContainer(InfraContainer):
@@ -617,10 +631,12 @@ class FaceRecognitionContainer(InfraContainer):
             self.face_recognition_service.start()
 
     def stop(self):
-        if self.face_recognition_service:
-            logger.info("Stop Face Recognition")
-            self.face_recognition_service.stop()
-        super().stop()
+        try:
+            if self.face_recognition_service:
+                logger.info("Stop Face Recognition")
+                self.face_recognition_service.stop()
+        finally:
+            super().stop()
 
 
 class VectorIdContainer(InfraContainer):
@@ -643,9 +659,11 @@ class VectorIdContainer(InfraContainer):
         self.vector_id_service.start()
 
     def stop(self):
-        logger.info("Stop Vector ID")
-        self.vector_id_service.stop()
-        super().stop()
+        try:
+            logger.info("Stop Vector ID")
+            self.vector_id_service.stop()
+        finally:
+            super().stop()
 
 
 class EmotionRecognitionContainer(InfraContainer):
@@ -726,13 +744,15 @@ class EmotionRecognitionContainer(InfraContainer):
             self.face_emotion_recognition_service.start()
 
     def stop(self):
-        if self.face_emotion_recognition_service:
-            logger.info("Stop Face Emotion Recognition service")
-            self.face_emotion_recognition_service.stop()
-        if self.emotion_recognition_service:
-            logger.info("Stop Emotion Recognition service")
-            self.emotion_recognition_service.stop()
-        super().stop()
+        try:
+            if self.face_emotion_recognition_service:
+                logger.info("Stop Face Emotion Recognition service")
+                self.face_emotion_recognition_service.stop()
+            if self.emotion_recognition_service:
+                logger.info("Stop Emotion Recognition service")
+                self.emotion_recognition_service.stop()
+        finally:
+            super().stop()
 
 
 class NLPContainer(InfraContainer):
@@ -754,9 +774,11 @@ class NLPContainer(InfraContainer):
         self.nlp_service.start()
 
     def stop(self):
-        logger.info("Stop NLP service")
-        self.nlp_service.stop()
-        super().stop()
+        try:
+            logger.info("Stop NLP service")
+            self.nlp_service.stop()
+        finally:
+            super().stop()
 
 
 class MentionExtractionContainer(InfraContainer):
@@ -784,9 +806,11 @@ class MentionExtractionContainer(InfraContainer):
         self.mention_extraction_service.start()
 
     def stop(self):
-        logger.info("Stop Mention Extraction Service")
-        self.mention_extraction_service.stop()
-        super().stop()
+        try:
+            logger.info("Stop Mention Extraction Service")
+            self.mention_extraction_service.stop()
+        finally:
+            super().stop()
 
 
 class ChatUIContainer(InfraContainer):
@@ -806,9 +830,11 @@ class ChatUIContainer(InfraContainer):
         self.chatui_service.start()
 
     def stop(self):
-        logger.info("Stop Chat UI")
-        self.chatui_service.stop()
-        super().stop()
+        try:
+            logger.info("Stop Chat UI")
+            self.chatui_service.stop()
+        finally:
+            super().stop()
 
 
 class AboutAgentContainer(EmissorStorageContainer, InfraContainer):
@@ -829,9 +855,11 @@ class AboutAgentContainer(EmissorStorageContainer, InfraContainer):
         self.about_agent_service.start()
 
     def stop(self):
-        logger.info("Stop AboutAgent")
-        self.about_agent_service.stop()
-        super().stop()
+        try:
+            logger.info("Stop AboutAgent")
+            self.about_agent_service.stop()
+        finally:
+            super().stop()
 
 
 class VisualResponderContainer(EmissorStorageContainer, InfraContainer):
@@ -852,9 +880,11 @@ class VisualResponderContainer(EmissorStorageContainer, InfraContainer):
         self.visual_responder_service.start()
 
     def stop(self):
-        logger.info("Stop VisualResponder")
-        self.visual_responder_service.stop()
-        super().stop()
+        try:
+            logger.info("Stop VisualResponder")
+            self.visual_responder_service.stop()
+        finally:
+            super().stop()
 
 
 class LeolaniContainer(EmissorStorageContainer, InfraContainer):
@@ -946,16 +976,18 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
             self.id_resolution_service.start()
 
     def stop(self):
-        logger.info("Stop Leolani services")
-        self.monitoring_service.stop()
-        self.keyword_service.stop()
-        self.init_intention.stop()
-        self.chat_intention.stop()
-        self.bdi_service.stop()
-        self.context_service.stop()
-        if self.id_resolution_service:
-            self.id_resolution_service.stop()
-        super().stop()
+        try:
+            logger.info("Stop Leolani services")
+            self.monitoring_service.stop()
+            self.keyword_service.stop()
+            self.init_intention.stop()
+            self.chat_intention.stop()
+            self.bdi_service.stop()
+            self.context_service.stop()
+            if self.id_resolution_service:
+                self.id_resolution_service.stop()
+        finally:
+            super().stop()
 
 
 class G2KYContainer(LeolaniContainer, EmissorStorageContainer, InfraContainer):
@@ -992,9 +1024,11 @@ class G2KYContainer(LeolaniContainer, EmissorStorageContainer, InfraContainer):
         self.g2ky_service.start()
 
     def stop(self):
-        logger.info("Stop G2KY")
-        self.g2ky_service.stop()
-        super().stop()
+        try:
+            logger.info("Stop G2KY")
+            self.g2ky_service.stop()
+        finally:
+            super().stop()
 
 
 class ApplicationContainer(ChatUIContainer, G2KYContainer, LeolaniContainer,
@@ -1005,37 +1039,29 @@ class ApplicationContainer(ChatUIContainer, G2KYContainer, LeolaniContainer,
                            ObjectRecognitionContainer, EmotionRecognitionContainer,
                            ASRContainer, VADContainer,
                            EmissorStorageContainer, BackendContainer):
-    pass
+    @property
+    @singleton
+    def log_writer(self):
+        config = self.config_manager.get_config("cltl.event_log")
 
+        return LogWriter(config.get("log_dir"), serializer)
 
-def get_event_log_path(config):
-    log_dir = config.get('event_log')
-    date_now = datetime.now()
+    @property
+    @singleton
+    def event_log_service(self):
+        return EventLogService.from_config(self.log_writer, self.event_bus, self.config_manager)
 
-    os.makedirs(log_dir, exist_ok=True)
+    def start(self):
+        logger.info("Start EventLog")
+        super().start()
+        self.event_log_service.start()
 
-    return f"{log_dir}/{date_now :%y_%m_%d-%H_%M_%S}.json"
-
-
-@contextlib.contextmanager
-def event_log(event_bus, config):
-    def log_event(event):
+    def stop(self):
         try:
-            event_log.write(json.dumps(event, default=serializer, indent=2) + ',\n')
-        except:
-            logger.exception("Failed to write event: %s", event)
-
-    with open(get_event_log_path(config), "w") as event_log:
-        event_log.writelines(['['])
-
-        topics = event_bus.topics
-        for topic in topics:
-            event_bus.subscribe(topic, log_event)
-        logger.info("Subscribed %s to %s", event_log.name, topics)
-
-        yield None
-
-        event_log.writelines([']'])
+            logger.info("Stop EventLog")
+            self.event_log_service.stop()
+        finally:
+            super().stop()
 
 
 def serializer(obj):
@@ -1052,32 +1078,29 @@ def main():
     ApplicationContainer.load_configuration()
     logger.info("Initialized Application")
     application = ApplicationContainer()
-    application.start()
 
-    intention_topic = application.config_manager.get_config("cltl.bdi").get("topic_intention")
-    application.event_bus.publish(intention_topic, Event.for_payload(IntentionEvent(["init"])))
+    with application as started_app:
+        intention_topic = started_app.config_manager.get_config("cltl.bdi").get("topic_intention")
+        started_app.event_bus.publish(intention_topic, Event.for_payload(IntentionEvent(["init"])))
 
-    config = application.config_manager.get_config("cltl.leolani")
-    with event_log(application.event_bus, config):
+
         routes = {
-            '/storage': application.storage_service.app,
-            '/emissor': application.emissor_data_service.app,
-            '/chatui': application.chatui_service.app,
-            '/monitoring': application.monitoring_service.app,
+            '/storage': started_app.storage_service.app,
+            '/emissor': started_app.emissor_data_service.app,
+            '/chatui': started_app.chatui_service.app,
+            '/monitoring': started_app.monitoring_service.app,
         }
 
-        if application.server:
-            routes['/host'] = application.server.app
+        if started_app.server:
+            routes['/host'] = started_app.server.app
 
         web_app = DispatcherMiddleware(Flask("Leolani app"), routes)
 
         run_simple('0.0.0.0', 8000, web_app, threaded=True, use_reloader=False, use_debugger=False, use_evalex=True)
 
-        intention_topic = application.config_manager.get_config("cltl.bdi").get("topic_intention")
-        application.event_bus.publish(intention_topic, Event.for_payload(IntentionEvent(["terminate"])))
+        intention_topic = started_app.config_manager.get_config("cltl.bdi").get("topic_intention")
+        started_app.event_bus.publish(intention_topic, Event.for_payload(IntentionEvent(["terminate"])))
         time.sleep(1)
-
-        application.stop()
 
 
 if __name__ == '__main__':
