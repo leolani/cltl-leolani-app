@@ -785,11 +785,13 @@ class MentionExtractionContainer(InfraContainer):
     @property
     @singleton
     def mention_extractor(self) -> MentionExtractor:
+        config = self.config_manager.get_config("cltl.mention_extraction")
+
         text_detector = TextMentionDetector()
         face_detector = NewFaceMentionDetector()
         object_detector = ObjectMentionDetector()
         text_perspective_detector = TextPerspectiveDetector()
-        image_perspective_detector = ImagePerspectiveDetector()
+        image_perspective_detector = ImagePerspectiveDetector(config.get_float("confidence_threshold"))
 
         return DefaultMentionExtractor(text_detector, text_perspective_detector, image_perspective_detector,
                                        face_detector, object_detector)
