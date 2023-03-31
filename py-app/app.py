@@ -58,6 +58,7 @@ from cltl.nlp.api import NLP
 from cltl.nlp.spacy_nlp import SpacyNLP
 from cltl.object_recognition.api import ObjectDetector
 from cltl.object_recognition.proxy import ObjectDetectorProxy
+from cltl.reply_generation.thought_selectors.random_selector import RandomSelector
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl.vector_id.api import VectorIdentity
 from cltl.vector_id.clusterid import ClusterIdentity
@@ -521,7 +522,9 @@ class ReplierContainer(BrainContainer, EmissorStorageContainer, InfraContainer):
 
         if "LenkaReplier" in implementations:
             from cltl.reply_generation.lenka_replier import LenkaReplier
-            replier = LenkaReplier()
+            thought_options = config.get("thought_options", multi=True) if "thought_options" in config else []
+            randomness = config.float("randomness") if "randomness" in config else 1.0
+            replier = LenkaReplier(RandomSelector(randomness=randomness, priority=thought_options))
             repliers.append(replier)
         if "RLReplier" in implementations:
             from cltl.reply_generation.rl_replier import RLReplier
