@@ -59,8 +59,7 @@ py-app/resources/midas-da-roberta/classifier.pt:
 
 py-app/resources/conversational_triples/models.lock:
 	mkdir -p py-app/resources/conversational_triples
-	wget -qO- "https://vu.data.surfsara.nl/index.php/s/WpL1vFChlQpkbqW/download" \
-        | tar xvz -C py-app/resources/conversational_triples --strip-components=1
+	wget -qO- "https://vu.data.surfsara.nl/index.php/s/WpL1vFChlQpkbqW/download" | tar xvz -C py-app/resources/conversational_triples --strip-components=1
 	touch py-app/resources/conversational_triples/models.lock
 
 
