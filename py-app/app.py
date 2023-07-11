@@ -316,6 +316,10 @@ class ASRContainer(EmissorStorageContainer, InfraContainer):
             impl_config = self.config_manager.get_config("cltl.asr.google")
             asr = GoogleASR(impl_config.get("language"), impl_config.get_int("sampling_rate"),
                             hints=impl_config.get("hints", multi=True))
+        elif implementation == "whisper":
+            from cltl.asr.whisper_asr import WhisperASR
+            impl_config = self.config_manager.get_config("cltl.asr.whisper")
+            asr = WhisperASR(impl_config.get("model"), impl_config.get("language"), storage=storage)
         elif implementation == "speechbrain":
             from cltl.asr.speechbrain_asr import SpeechbrainASR
             impl_config = self.config_manager.get_config("cltl.asr.speechbrain")
