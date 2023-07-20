@@ -37,12 +37,12 @@ include makefile.helm.mk
 
 
 spacy.lock: venv
-	source venv/bin/activate; python -m spacy download en
+	test -e spacy.lock || (source venv/bin/activate; python -m spacy download en)
 	touch spacy.lock
 
 
 nltk.lock: venv
-	source venv/bin/activate; python -m nltk.downloader -d ~/nltk_data all
+	test -e nltk.lock || (source venv/bin/activate; python -m nltk.downloader -d ~/nltk_data all)
 	touch nltk.lock
 
 
