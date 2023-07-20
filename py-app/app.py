@@ -3,10 +3,10 @@ import logging.config
 import os
 import pathlib
 import random
+import time
 
 import cltl.leolani.gestures as gestures
 import requests
-import time
 from cltl.about.about import AboutImpl
 from cltl.about.api import About
 from cltl.backend.api.backend import Backend
@@ -59,6 +59,7 @@ from cltl.nlp.spacy_nlp import SpacyNLP
 from cltl.object_recognition.api import ObjectDetector
 from cltl.object_recognition.proxy import ObjectDetectorProxy
 from cltl.reply_generation.thought_selectors.random_selector import RandomSelector
+from cltl.triple_extraction.chat_analyzer import ChatAnalyzer
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl.vector_id.api import VectorIdentity
 from cltl.vector_id.clusterid import ClusterIdentity
@@ -362,25 +363,33 @@ class TripleExtractionContainer(InfraContainer):
     @singleton
     def triple_extraction_service(self) -> TripleExtractionService:
         config = self.config_manager.get_config("cltl.triple_extraction")
-        implementation = config.get("implementation")
+        implementation = config.get("implementation", multi=True)
 
-        if implementation == "CFGAnalyzer":
+        analyzers = []
+        if "CFGAnalyzer" in implementation:
             from cltl.triple_extraction.cfg_analyzer import CFGAnalyzer
-            analyzer = CFGAnalyzer()
-        elif implementation == "OIEAnalyzer":
+            analyzers.append(CFGAnalyzer())
+        if "CFGQuestionAnalyzer" in implementation:
+            from cltl.question_extraction.cfg_question_analyzer import CFGQuestionAnalyzer
+            analyzers.append(CFGQuestionAnalyzer())
+        if "StanzaQuestionAnalyzer" in implementation:
+            from cltl.question_extraction.stanza_question_analyzer import StanzaQuestionAnalyzer
+            analyzers.append(StanzaQuestionAnalyzer())
+        if "OIEAnalyzer" in implementation:
             from cltl.triple_extraction.oie_analyzer import OIEAnalyzer
-            analyzer = OIEAnalyzer()
-        elif implementation == "spacyAnalyzer":
+            analyzers.append(OIEAnalyzer())
+        if "spacyAnalyzer" in implementation:
             from cltl.triple_extraction.spacy_analyzer import spacyAnalyzer
-            analyzer = spacyAnalyzer()
-        elif implementation == "conversational":
+            analyzers.append(spacyAnalyzer())
+        if "conversational" in implementation:
             from cltl.triple_extraction.conversational_analyzer import ConversationalAnalyzer
             config = self.config_manager.get_config('cltl.triple_extraction.conversational')
-            analyzer = ConversationalAnalyzer(config.get('model_path'))
-        else:
-            raise ValueError("Unsupported implementation " + implementation)
+            analyzers.append(ConversationalAnalyzer(config.get('model_path')))
 
-        return TripleExtractionService.from_config(analyzer, self.event_bus, self.resource_manager, self.config_manager)
+        if not analyzers:
+            raise ValueError("No supported analyzers in " + implementation)
+
+        return TripleExtractionService.from_config(ChatAnalyzer(analyzers), self.event_bus, self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start Triple Extraction")
