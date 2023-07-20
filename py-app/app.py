@@ -368,7 +368,7 @@ class TripleExtractionContainer(InfraContainer):
         analyzers = []
         if "CFGAnalyzer" in implementation:
             from cltl.triple_extraction.cfg_analyzer import CFGAnalyzer
-            analyzers.append(CFGAnalyzer())
+            analyzers.append(CFGAnalyzer(process_questions=False))
         if "CFGQuestionAnalyzer" in implementation:
             from cltl.question_extraction.cfg_question_analyzer import CFGQuestionAnalyzer
             analyzers.append(CFGQuestionAnalyzer())
