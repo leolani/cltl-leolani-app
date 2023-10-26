@@ -391,13 +391,15 @@ class TripleExtractionContainer(EmissorStorageContainer, InfraContainer):
             config = self.config_manager.get_config('cltl.triple_extraction.conversational')
             model = config.get('model_path')
             threshold = config.get_float("threshold")
-            analyzers.append(ConversationalAnalyzer(model, threshold, [DialogueAct.STATEMENT]))
+            max_triples = config.get_int("max_triples")
+            analyzers.append(ConversationalAnalyzer(model, threshold, max_triples, [DialogueAct.STATEMENT]))
         if "ConversationalQuestionAnalyzer" in implementation:
             from cltl.triple_extraction.conversational_analyzer import ConversationalAnalyzer
             config = self.config_manager.get_config('cltl.triple_extraction.conversational')
             model = config.get('model_path')
             threshold = config.get_float("threshold")
-            analyzers.append(ConversationalAnalyzer(model, threshold, [DialogueAct.QUESTION]))
+            max_triples = config.get_int("max_triples")
+            analyzers.append(ConversationalAnalyzer(model, threshold, max_triples, [DialogueAct.QUESTION]))
 
         if not analyzers:
             raise ValueError("No supported analyzers in " + implementation)
