@@ -358,7 +358,7 @@ class ASRContainer(EmissorStorageContainer, InfraContainer):
             super().stop()
 
 
-class TripleExtractionContainer(InfraContainer):
+class TripleExtractionContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def triple_extraction_service(self) -> TripleExtractionService:
@@ -389,7 +389,8 @@ class TripleExtractionContainer(InfraContainer):
         if not analyzers:
             raise ValueError("No supported analyzers in " + implementation)
 
-        return TripleExtractionService.from_config(ChatAnalyzer(analyzers), self.event_bus, self.resource_manager, self.config_manager)
+        return TripleExtractionService.from_config(ChatAnalyzer(analyzers), self.emissor_data_client, self.event_bus,
+                                                   self.resource_manager, self.config_manager)
 
     def start(self):
         logger.info("Start Triple Extraction")
