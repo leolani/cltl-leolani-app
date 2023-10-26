@@ -7,7 +7,7 @@ cltl.dialogueclassification[impl, service]
 cltl.emotionrecognition[nltk, go, face, service]
 cltl.mention-detection[impl, service]
 cltl.brain[service]
-cltl.triple_extraction[service]
+cltl.triple_extraction[service, conversational]
 cltl.entity_linking
 cltl.reply_generation[service]
 cltl.emissor-data[impl,service,client]

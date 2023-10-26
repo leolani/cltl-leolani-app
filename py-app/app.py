@@ -45,6 +45,8 @@ from cltl.face_emotion_extraction.api import FaceEmotionExtractor
 from cltl.face_emotion_extraction.context_face_emotion_extractor import ContextFaceEmotionExtractor
 from cltl.face_recognition.api import FaceDetector
 from cltl.face_recognition.proxy import FaceDetectorProxy
+from cltl.factual_question_processing.api import FactualResponder
+from cltl.factual_question_processing.wikipedia_responder import WikipediaResponder
 from cltl.friends.api import FriendStore
 from cltl.friends.brain import BrainFriendsStore
 from cltl.friends.memory import MemoryFriendsStore
@@ -59,6 +61,7 @@ from cltl.nlp.spacy_nlp import SpacyNLP
 from cltl.object_recognition.api import ObjectDetector
 from cltl.object_recognition.proxy import ObjectDetectorProxy
 from cltl.reply_generation.thought_selectors.random_selector import RandomSelector
+from cltl.triple_extraction.api import DialogueAct
 from cltl.triple_extraction.chat_analyzer import ChatAnalyzer
 from cltl.vad.webrtc_vad import WebRtcVAD
 from cltl.vector_id.api import VectorIdentity
@@ -81,6 +84,7 @@ from cltl_service.emotion_responder.service import EmotionResponderService
 from cltl_service.entity_linking.service import DisambiguationService
 from cltl_service.face_emotion_extraction.service import FaceEmotionExtractionService
 from cltl_service.face_recognition.service import FaceRecognitionService
+from cltl_service.factual_question_processing.service import FactualResponderService
 from cltl_service.g2ky.service import GetToKnowYouService
 from cltl_service.idresolution.service import IdResolutionService
 from cltl_service.intentions.chat import InitializeChatService
@@ -364,6 +368,7 @@ class TripleExtractionContainer(EmissorStorageContainer, InfraContainer):
     def triple_extraction_service(self) -> TripleExtractionService:
         config = self.config_manager.get_config("cltl.triple_extraction")
         implementation = config.get("implementation", multi=True)
+        timeout = config.get_float("timeout") if "timeout" in config else 0.0
 
         analyzers = []
         if "CFGAnalyzer" in implementation:
@@ -378,18 +383,28 @@ class TripleExtractionContainer(EmissorStorageContainer, InfraContainer):
         if "OIEAnalyzer" in implementation:
             from cltl.triple_extraction.oie_analyzer import OIEAnalyzer
             analyzers.append(OIEAnalyzer())
-        if "spacyAnalyzer" in implementation:
+        if "SpacyAnalyzer" in implementation:
             from cltl.triple_extraction.spacy_analyzer import spacyAnalyzer
             analyzers.append(spacyAnalyzer())
-        if "conversational" in implementation:
+        if "ConversationalAnalyzer" in implementation:
             from cltl.triple_extraction.conversational_analyzer import ConversationalAnalyzer
             config = self.config_manager.get_config('cltl.triple_extraction.conversational')
-            analyzers.append(ConversationalAnalyzer(config.get('model_path')))
+            model = config.get('model_path')
+            threshold = config.get_float("threshold")
+            analyzers.append(ConversationalAnalyzer(model, threshold, [DialogueAct.STATEMENT]))
+        if "ConversationalQuestionAnalyzer" in implementation:
+            from cltl.triple_extraction.conversational_analyzer import ConversationalAnalyzer
+            config = self.config_manager.get_config('cltl.triple_extraction.conversational')
+            model = config.get('model_path')
+            threshold = config.get_float("threshold")
+            analyzers.append(ConversationalAnalyzer(model, threshold, [DialogueAct.QUESTION]))
 
         if not analyzers:
             raise ValueError("No supported analyzers in " + implementation)
 
-        return TripleExtractionService.from_config(ChatAnalyzer(analyzers), self.emissor_data_client, self.event_bus,
+        logger.info("Using analyzers %s in Triple Extraction", implementation)
+            
+        return TripleExtractionService.from_config(ChatAnalyzer(analyzers, timeout=timeout), self.emissor_data_client, self.event_bus,
                                                    self.resource_manager, self.config_manager)
 
     def start(self):
@@ -881,6 +896,31 @@ class AboutAgentContainer(EmissorStorageContainer, InfraContainer):
             super().stop()
 
 
+class FactualResponderContainer(EmissorStorageContainer, InfraContainer):
+    @property
+    @singleton
+    def factual_responder(self) -> FactualResponder:
+        return WikipediaResponder()
+
+    @property
+    @singleton
+    def factual_responder_service(self) -> FactualResponderService:
+        return FactualResponderService.from_config(self.factual_responder, self.emissor_data_client,
+                                                   self.event_bus, self.resource_manager, self.config_manager)
+
+    def start(self):
+        logger.info("Start FactualResponder")
+        super().start()
+        self.factual_responder_service.start()
+
+    def stop(self):
+        try:
+            logger.info("Stop FactualResponder")
+            self.factual_responder_service.stop()
+        finally:
+            super().stop()
+
+
 class VisualResponderContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
@@ -1051,7 +1091,7 @@ class G2KYContainer(LeolaniContainer, EmissorStorageContainer, InfraContainer):
 
 
 class ApplicationContainer(ChatUIContainer, G2KYContainer, LeolaniContainer,
-                           AboutAgentContainer, VisualResponderContainer,
+                           AboutAgentContainer, FactualResponderContainer, VisualResponderContainer,
                            TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
                            NLPContainer, MentionExtractionContainer, DialogueActClassficationContainer,
                            FaceRecognitionContainer, VectorIdContainer,
