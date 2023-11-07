@@ -1055,21 +1055,21 @@ class G2KYContainer(LeolaniContainer, EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def g2ky(self) -> GetToKnowYou:
+        get_friends = self.friend_store.get_friends()
+        friends = {face_id: names[1][0]
+                   for face_id, names in get_friends.items()
+                   if names[1]}
+
+        logger.info("Initializing G2KY with %s friends", len(friends))
+
         config = self.config_manager.get_config("cltl.g2ky")
         implementation = config.get("implementation")
         if implementation == "visual":
             config = self.config_manager.get_config("cltl.g2ky.visual")
 
-            get_friends = self.friend_store.get_friends()
-            friends = {face_id: names[1][0]
-                       for face_id, names in get_friends.items()
-                       if names[1]}
-
-            logger.info("Initialized G2KY with %s friends", len(friends))
-
             return VisualGetToKnowYou(gaze_images=config.get_int("gaze_images"), friends=friends)
         elif implementation == "verbal":
-            return VerbalGetToKnowYou()
+            return VerbalGetToKnowYou(friends)
         else:
             raise ValueError("Unknown G2KY implementation: " + implementation)
 
