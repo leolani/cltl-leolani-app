@@ -24,6 +24,6 @@ The `py-app/` directory contains configurations to run the Python application as
 * [On a robot (remote backend)](./py-config/robot)
 
 To use them, copy the `pepper.config` file from any of the directories to
-`py-app/config` next to the `default.config`.
+`py-app/config/custom.config` next to the `default.config`.
 
 
