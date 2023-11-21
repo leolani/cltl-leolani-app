@@ -1003,9 +1003,11 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
         #                  {"quit": ["init"]}
         #              }
         bdi_model = {"init":
-                         {"initialized": ["g2ky"]},
+                         {"initialized": ["g2ky"],
+                          "quit": ["init"]},
                      "g2ky":
-                         {"resolved": ["chat"]},
+                         {"resolved": ["chat"],
+                          "quit": ["init"]},
                      "chat":
                          {"quit": ["init"]}
                      }
