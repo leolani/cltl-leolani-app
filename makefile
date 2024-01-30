@@ -19,6 +19,7 @@ project_dependencies ?= $(addprefix $(project_root)/, \
 		cltl-emotionrecognition \
 		cltl-dialogueclassification \
 		cltl-g2ky \
+		cltl-g2kmore \
 		cltl-questionprocessor \
 		cltl-visualresponder \
 		cltl-about-agent \

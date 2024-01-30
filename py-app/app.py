@@ -1,3 +1,4 @@
+import json
 import logging.config
 import logging.config
 import os
@@ -34,6 +35,9 @@ from cltl.combot.infra.event import Event
 from cltl.combot.infra.event.memory import SynchronousEventBusContainer
 from cltl.combot.infra.event_log import LogWriter
 from cltl.combot.infra.resource.threaded import ThreadedResourceContainer
+from cltl.dialogue_act_classification.api import DialogueActClassifier
+from cltl.dialogue_act_classification.midas_classifier import MidasDialogTagger
+from cltl.dialogue_act_classification.silicone_classifier import SiliconeDialogueActClassifier
 from cltl.emissordata.api import EmissorDataStorage
 from cltl.emissordata.file_storage import EmissorDataFileStorage
 from cltl.emotion_extraction.api import EmotionExtractor
@@ -50,6 +54,8 @@ from cltl.factual_question_processing.wikipedia_responder import WikipediaRespon
 from cltl.friends.api import FriendStore
 from cltl.friends.brain import BrainFriendsStore
 from cltl.friends.memory import MemoryFriendsStore
+from cltl.g2kmore.api import GetToKnowMore
+from cltl.g2kmore.brain_g2kmore import BrainGetToKnowMore
 from cltl.g2ky.api import GetToKnowYou
 from cltl.g2ky.verbal import VerbalGetToKnowYou
 from cltl.g2ky.visual import VisualGetToKnowYou
@@ -77,6 +83,7 @@ from cltl_service.brain.service import BrainService
 from cltl_service.chatui.service import ChatUiService
 from cltl_service.combot.event_log.service import EventLogService
 from cltl_service.context.service import ContextService
+from cltl_service.dialogue_act_classification.service import DialogueActClassificationService
 from cltl_service.emissordata.client import EmissorDataClient
 from cltl_service.emissordata.service import EmissorDataService
 from cltl_service.emotion_extraction.service import EmotionExtractionService
@@ -85,6 +92,7 @@ from cltl_service.entity_linking.service import DisambiguationService
 from cltl_service.face_emotion_extraction.service import FaceEmotionExtractionService
 from cltl_service.face_recognition.service import FaceRecognitionService
 from cltl_service.factual_question_processing.service import FactualResponderService
+from cltl_service.g2kmore.service import GetToKnowMoreService
 from cltl_service.g2ky.service import GetToKnowYouService
 from cltl_service.idresolution.service import IdResolutionService
 from cltl_service.intentions.chat import InitializeChatService
@@ -95,6 +103,7 @@ from cltl_service.monitoring.service import MonitoringService
 from cltl_service.nlp.service import NLPService
 from cltl_service.object_recognition.service import ObjectRecognitionService
 from cltl_service.reply_generation.service import ReplyGenerationService
+from cltl_service.thought_intention.service import ThoughtIntentionService
 from cltl_service.triple_extraction.service import TripleExtractionService
 from cltl_service.vad.service import VadService
 from cltl_service.vector_id.service import VectorIdService
@@ -103,11 +112,6 @@ from emissor.representation.util import serializer as emissor_serializer
 from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
-
-from cltl.dialogue_act_classification.api import DialogueActClassifier
-from cltl.dialogue_act_classification.midas_classifier import MidasDialogTagger
-from cltl.dialogue_act_classification.silicone_classifier import SiliconeDialogueActClassifier
-from cltl_service.dialogue_act_classification.service import DialogueActClassificationService
 
 logging.config.fileConfig(os.environ.get('CLTL_LOGGING_CONFIG', default='config/logging.config'),
                           disable_existing_loggers=False)
@@ -992,22 +996,7 @@ class LeolaniContainer(EmissorStorageContainer, InfraContainer):
     @property
     @singleton
     def bdi_service(self) -> BDIService:
-        # TODO make configurable
-        # Model for testing without G2KY
-        # bdi_model = {"init":
-        #                  {"initialized": ["chat"]},
-        #              "chat":
-        #                  {"quit": ["init"]}
-        #              }
-        bdi_model = {"init":
-                         {"initialized": ["g2ky"],
-                          "quit": ["init"]},
-                     "g2ky":
-                         {"resolved": ["chat"],
-                          "quit": ["init"]},
-                     "chat":
-                         {"quit": ["init"]}
-                     }
+        bdi_model = json.loads(self.config_manager.get_config("cltl.bdi").get("model"))
 
         return BDIService.from_config(bdi_model, self.event_bus, self.resource_manager, self.config_manager)
 
@@ -1091,7 +1080,53 @@ class G2KYContainer(LeolaniContainer, EmissorStorageContainer, InfraContainer):
             super().stop()
 
 
-class ApplicationContainer(ChatUIContainer, G2KYContainer, LeolaniContainer,
+class G2KMoreContainer(LeolaniContainer, BrainContainer, EmissorStorageContainer, InfraContainer):
+    @property
+    @singleton
+    def g2kmore(self) -> GetToKnowMore:
+        config = self.config_manager.get_config("cltl.g2kmore")
+        if config.get("implementation") == "brain":
+            return BrainGetToKnowMore(self.brain, config.get_int("max_attempts"),
+                                      config.get_int("max_intention_attempts"))
+        else:
+            return False
+
+    @property
+    @singleton
+    def g2kmore_service(self) -> GetToKnowMoreService:
+        if self.g2kmore:
+            return GetToKnowMoreService.from_config(self.g2kmore, self.emissor_data_client,
+                                                    self.event_bus, self.resource_manager, self.config_manager)
+        else:
+            return False
+
+
+    @property
+    @singleton
+    def thought_intention_service(self) -> ThoughtIntentionService:
+        if self.g2kmore:
+            return ThoughtIntentionService.from_config(self.event_bus, self.resource_manager, self.config_manager)
+        else:
+            return False
+
+    def start(self):
+        if self.g2kmore_service:
+            logger.info("Start G2KMore")
+            super().start()
+            self.g2kmore_service.start()
+            self.thought_intention_service.start()
+
+    def stop(self):
+        try:
+            if self.g2kmore_service:
+                logger.info("Stop G2KMore")
+                self.g2kmore_service.stop()
+                self.thought_intention_service.stop()
+        finally:
+            super().stop()
+
+
+class ApplicationContainer(ChatUIContainer, G2KYContainer, G2KMoreContainer, LeolaniContainer,
                            AboutAgentContainer, FactualResponderContainer, VisualResponderContainer,
                            TripleExtractionContainer, DisambiguationContainer, ReplierContainer, BrainContainer,
                            NLPContainer, MentionExtractionContainer, DialogueActClassficationContainer,

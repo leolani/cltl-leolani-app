@@ -11,6 +11,7 @@ cltl.triple_extraction[service, conversational]
 cltl.entity_linking
 cltl.reply_generation[service]
 cltl.emissor-data[impl,service,client]
+cltl.g2kmore[impl,service]
 cltl.g2ky[impl,service]
 cltl.leolani
 cltl.factual_question_processing[service]
