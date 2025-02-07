@@ -126,7 +126,7 @@ class FriendImporter:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Friends importer')
     parser.add_argument('--friend', type=str, required=True, action='append', nargs="*",
-                        help="Friend name followed by image paths")
+                        help="Friend name followed by image paths. The parameter can be specified multiple times.")
     parser.add_argument('--ids-only', action='store_true',
                         help="Only add friends to the VectorID store, don't associate vector IDs to names")
     args, _ = parser.parse_known_args()
